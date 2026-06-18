@@ -1,57 +1,33 @@
 # Changelog
 
-All notable changes to DevContext will be documented in this file.
+All notable changes to DevContext.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
-
-## [Unreleased]
-
-### Added
-- Plugin system for extensibility
-- Watch mode for auto-regeneration on file changes
-- Git hooks integration (pre-commit, pre-push)
-- Caching system for faster repeated scans
-- Configuration file support (.devcontextrc)
-- Multiple output formats (JSON, Markdown, HTML, TXT)
-- Diff comparison between context snapshots
-- API client for programmatic usage
-- Project templates
-- Analysis reports (summary, health, API, dependencies)
-- Validation utilities
-- Slack/Discord/Email notifiers
-- Best practices guide
-- Developer guide
-- Security guide
-- Plugin development guide
-- Performance guide
-
-## [0.1.0] - 2026-06-18
-
-### Added
-- CLI with 3 commands: `generate`, `tree`, `parse`
-- Support for 20+ programming languages
-- File system scanning with smart filtering
-- Code analysis (functions, classes, imports)
-- Complexity metrics
-- Framework detection
-- API endpoint extraction
-- JSON and Markdown output formats
-- GitHub Actions CI/CD
-- GitHub Pages documentation
-- Issue and PR templates
-- Comprehensive test suite (14 tests)
-- Professional README with badges
-- SECURITY.md, FUNDING.yml, CODEOWNERS
-- 9 GitHub topics for discoverability
-
-## [0.0.1] - 2026-06-17
+## [0.1.0] - 2024-06-18
 
 ### Added
 - Initial release
-- Basic context generation
-- Simple file tree output
+- CLI interface with `generate`, `tree`, `parse` commands
+- Support for 20+ programming languages
+- Multiple output formats: JSON, Markdown, HTML, Compact
+- GitHub Actions CI/CD integration
+- GitHub Pages documentation
+- Plugin system
+- Watch mode for auto-regeneration
+- Batch processing
+- Context merging
+- Report generation
+- Statistics tracking
+- Security scanner
+- Shell completions (bash, zsh, fish)
+- Email notifications
+- Webhook support
+- Cache system
+- Configuration management
+- Git hooks integration
 
-<!-- Links -->
-[Unreleased]: https://github.com/jhony91792-oss/devcontext/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/jhony91792-oss/devcontext/releases/tag/v0.1.0
-[0.0.1]: https://github.com/jhony91792-oss/devcontext/releases/tag/v0.0.1
+### Features
+- Fast context generation (3 seconds for typical projects)
+- Configurable depth and ignore patterns
+- Works offline (no API keys required)
+- Python 3.8+ compatible
+- MIT License
