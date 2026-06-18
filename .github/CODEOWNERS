@@ -1,0 +1,15 @@
+# Code Owners
+# This file defines who owns which parts of the codebase
+
+# Default owner for all files
+*       @jhony91792-oss
+
+# Source code
+/src/   @jhony91792-oss
+
+# Documentation
+/docs/  @jhony91792-oss
+README.md @jhony91792-oss
+
+# CI/CD
+.github/workflows/ @jhony91792-oss
