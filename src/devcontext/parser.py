@@ -100,10 +100,11 @@ def extract_structure(content: str, language: str) -> dict[str, Any]:
                 result['functions'].append(name)
     
     # Extract classes/structs/interfaces
+    plural_map = {'class': 'classes', 'struct': 'structs', 'interface': 'interfaces'}
     for key in ['class', 'struct', 'interface']:
         if key in patterns:
             for match in re.finditer(patterns[key], content, re.MULTILINE):
-                result[key + 's'].append(match.group(1))
+                result[plural_map[key]].append(match.group(1))
     
     # Extract imports
     if 'import' in patterns:
