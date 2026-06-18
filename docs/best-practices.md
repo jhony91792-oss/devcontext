@@ -1,125 +1,95 @@
-# DevContext Best Practices Guide
+# Best Practices
 
-## Overview
+Recommendations for using DevContext effectively.
 
-This guide covers best practices for using DevContext effectively in your development workflow.
+## Getting Started
 
-## Quick Wins
+### 1. Quick Context Generation
 
-### 1. Daily AI Workflow
+For daily use, generate compact context:
+
 ```bash
-# Morning: Get context for today's work
-devcontext generate . -o daily-context.json
-
-# Paste content to AI when asking questions
-```
-
-### 2. Code Review
-```bash
-# Before asking for review
-devcontext generate . -f compact | pbcopy  # macOS
-```
-
-### 3. Debugging
-```bash
-# When encountering bugs
 devcontext generate . -f compact | pbcopy
-# Paste to ChatGPT/Claude with error message
 ```
 
-## Configuration Tips
+Then paste directly into ChatGPT/Claude.
 
-### Per-Project Config (.devcontextrc)
-```json
-{
-    "max_depth": 5,
-    "skip_dirs": [".git", "node_modules", "__pycache__", "dist"],
-    "include_hidden": false,
-    "output_format": "compact"
-}
-```
+### 2. Regular Updates
 
-### Global Config (~/.config/devcontext/config.json)
-```json
-{
-    "max_depth": 10,
-    "output_format": "json"
-}
-```
+Regenerate context after significant changes:
 
-## Advanced Usage
-
-### Watch Mode for Large Projects
 ```bash
-# Auto-regenerate context when files change
-devcontext watch . -o context.json -i 10
+# After adding new features
+devcontext generate . -o context.json
 ```
 
-### Git Hooks
-```bash
-# Install pre-commit hook
-devcontext hooks install pre-commit
+### 3. CI Integration
 
-# Now context auto-generates before each commit
-```
+Add context generation to your CI:
 
-### CI/CD Integration
 ```yaml
-# GitHub Actions
 - name: Generate Context
   run: |
     pip install devcontext
     devcontext generate . -o context.json
 ```
 
-## Performance Tips
+## Configuration
 
-1. **Limit depth** for large repos: `--max-depth 3`
-2. **Use caching**: Second run is 10x faster
-3. **Specific paths**: `devcontext generate ./src` instead of `.`
-4. **Compact format** for AI: `-f compact` (50% smaller)
+### Skip Unnecessary Files
 
-## Security
-
-- All processing is local
-- No network requests for analysis
-- No external dependencies
-- Safe to use with proprietary code
-
-## Troubleshooting
-
-### Slow on Large Projects
-- Use `--max-depth` to limit scan depth
-- Exclude unnecessary directories with config
-
-### Empty Output
-- Check path exists: `ls -la /path/to/project`
-- Try current directory: `devcontext generate .`
-
-### Missing Language Support
-- File an issue with language name and file extensions
-- Use `--format md` for basic file listing
-
-## Integrations
-
-### VS Code
-Add to `.vscode/tasks.json`:
 ```json
 {
-    "label": "AI Context",
-    "type": "shell",
-    "command": "devcontext generate . -o .devcontext.json"
+    "skip_dirs": [".git", "node_modules", "__pycache__", ".venv", "dist", "build"],
+    "skip_files": ["*.pyc", "*.log", "*.tmp"]
 }
 ```
 
-### JetBrains
-Coming soon — see [Roadmap](ROADMAP.md).
+### Set Max Depth
 
-### Slack
+For large projects, limit depth:
+
+```bash
+devcontext generate . --max-depth 5
 ```
-/devcontext generate ./project -o context.json
+
+## Output Formats
+
+### JSON
+Best for: Automation, API integration
+
+### Markdown
+Best for: Documentation, code reviews
+
+### HTML
+Best for: Sharing with non-technical stakeholders
+
+### Compact
+Best for: AI prompts, quick sharing
+
+## Performance Tips
+
+1. **Use ignore patterns** - Skip build artifacts
+2. **Limit depth** - Don't scan deeper than needed
+3. **Cache results** - Use `-o` to save output
+4. **Watch mode** - Use `devcontext watch` for real-time updates
+
+## Workflows
+
+### Debugging Flow
+```bash
+devcontext generate . -f compact > /tmp/ctx.txt
+# Paste to AI with: "Help me debug this error: [error]"
 ```
 
-## Contributing
+### Code Review Flow
+```bash
+devcontext generate . -a -o review.json
+# Share with team for review
+```
 
-Found a great workflow? Open an issue or PR to share it!
+### Onboarding Flow
+```bash
+devcontext generate . -f md > PROJECT_OVERVIEW.md
+# New team member reads this first
+```
