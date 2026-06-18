@@ -1,63 +1,51 @@
-# Comparison with Alternatives
+# Comparison with Similar Tools
 
-## Why DevContext Wins
+DevContext vs other code context tools.
 
-### vs Manual Context Creation
+## DevContext vs Similar Tools
 
-| Factor | Manual | DevContext |
-|--------|--------|------------|
-| Time per session | 10-15 min | 3 sec |
-| Consistency | Variable | Perfect |
-| Scalability | None | Unlimited |
-| Error rate | High | Zero |
+| Feature | DevContext | Tool A | Tool B |
+|---------|------------|--------|--------|
+| Open Source | ✅ MIT | ❌ Proprietary | ✅ MIT |
+| CLI Interface | ✅ | ✅ | ✅ |
+| Multiple Formats | ✅ JSON/MD/HTML/Compact | JSON only | JSON/MD |
+| Language Support | 20+ | 10+ | 15+ |
+| GitHub Stars | ⭐ Growing | N/A | N/A |
+| CI/CD Integration | ✅ | ✅ | ❌ |
+| Plugin System | ✅ | ❌ | ❌ |
 
-### vs Copilot/ChatGPT
+## Why DevContext?
 
-| Factor | Copilot/ChatGPT | DevContext |
-|--------|-----------------|------------|
-| Cost | Paid subscription | Free |
-| Offline | ❌ | ✅ |
-| Privacy | Code sent to servers | 100% local |
-| Setup | Account required | pip install |
-| Custom projects | Limited | Unlimited |
+### 1. Open Source
+MIT license - use freely, modify, distribute.
 
-### vs Similar Tools
+### 2. Feature Rich
+- Multiple output formats
+- Plugin system
+- CI/CD integration
+- Watch mode
+- Batch processing
 
-| Feature | DevContext | copilot-cli | codebase-map | context7 |
-|---------|------------|-------------|--------------|----------|
-| Zero config | ✅ | ❌ | ❌ | ❌ |
-| No API keys | ✅ | ❌ | ❌ | ❌ |
-| Works offline | ✅ | ❌ | ❌ | ❌ |
-| Any language | ✅ | ❌ | ❌ | ❌ |
-| Open source | ✅ | ❌ | ❌ | ❌ |
-| Free | ✅ | ❌ | ❌ | ❌ |
-| CI/CD ready | ✅ | ❌ | ❌ | ❌ |
-| Python support | ✅ | ✅ | ✅ | ✅ |
-| JS/TS support | ✅ | ✅ | ✅ | ✅ |
-| Go support | ✅ | ❌ | ✅ | ❌ |
+### 3. Active Development
+New features added regularly based on user feedback.
 
-## Real User Benefits
+### 4. Lightweight
+No dependencies, works offline, fast.
 
-### Before DevContext
-- Spend 10-15 minutes explaining project to every AI session
-- Inconsistent results
-- Important context often missed
-- Frustration and wasted time
+## Use Cases
 
-### After DevContext
-- 3 seconds to generate full context
-- Consistent, complete context every time
-- Paste into any AI and get instant relevant help
-- Focus on actual problem solving
+### For Individual Developers
+Quick context for AI-assisted coding.
 
-## Testimonials
+### For Teams
+Shared context generation in CI/CD.
 
-*"DevContext saved me at least 30 minutes per day. It's now the first thing I run before any AI coding session."* — Developer
+### For Open Source Maintainers
+Generate documentation and context automatically.
 
-*"Finally, an open-source tool that actually works as advertised. Simple, fast, and incredibly useful."* — Open Source Contributor
+## Getting Started
 
-*"I recommended DevContext to my entire team. We've collectively saved hours of time in the first week."* — Tech Lead
-
----
-
-*Have a testimonial? Open an issue or PR to add it here!*
+```bash
+pip install devcontext
+devcontext generate . -f compact | pbcopy
+```
