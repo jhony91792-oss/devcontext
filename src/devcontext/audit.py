@@ -1,212 +1,161 @@
-# Audit module for verifying DevContext installation
+# Audit module for DevContext - check installation health
 
 import os
 import sys
 import json
-from pathlib import Path
-from typing import Dict, Any, List, Optional
-from datetime import datetime
+import subprocess
+from typing import Dict, Any, List
 
 
-class AuditResult:
-    """Result of an audit check."""
+class AuditChecker:
+    """Check DevContext installation health."""
     
-    def __init__(self, name: str, passed: bool, message: str = "", details: Any = None):
-        self.name = name
-        self.passed = passed
-        self.message = message
-        self.details = details
+    def __init__(self):
+        self.issues: List[Dict[str, Any]] = []
+        self.checks: List[Dict[str, Any]] = []
     
-    def to_dict(self) -> Dict[str, Any]:
+    def check_python_version(self) -> bool:
+        """Check Python version."""
+        version = sys.version_info
+        is_valid = version.major >= 3 and version.minor >= 8
+        
+        self.checks.append({
+            "name": "Python Version",
+            "status": "pass" if is_valid else "fail",
+            "message": f"Python {version.major}.{version.minor}.{version.micro}"
+        })
+        
+        return is_valid
+    
+    def check_devcontext_installed(self) -> bool:
+        """Check if DevContext is installed."""
+        try:
+            result = subprocess.run(
+                ["devcontext", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            is_installed = result.returncode == 0
+            
+            self.checks.append({
+                "name": "DevContext Installed",
+                "status": "pass" if is_installed else "fail",
+                "message": result.stdout.strip() if is_installed else "Not found"
+            })
+            
+            return is_installed
+        except:
+            self.checks.append({
+                "name": "DevContext Installed",
+                "status": "fail",
+                "message": "Not found"
+            })
+            return False
+    
+    def check_dependencies(self) -> bool:
+        """Check required dependencies."""
+        required = ["json", "pathlib", "urllib", "hashlib"]
+        all_present = True
+        
+        for dep in required:
+            present = dep in sys.modules or dep in dir(__builtins__)
+            if not present:
+                all_present = False
+                self.issues.append(f"Missing dependency: {dep}")
+        
+        self.checks.append({
+            "name": "Dependencies",
+            "status": "pass" if all_present else "fail",
+            "message": "All present" if all_present else "Some missing"
+        })
+        
+        return all_present
+    
+    def check_permissions(self) -> bool:
+        """Check file permissions."""
+        home = os.path.expanduser("~")
+        config_dir = os.path.join(home, ".config", "devcontext")
+        
+        try:
+            os.makedirs(config_dir, exist_ok=True)
+            is_writable = os.access(config_dir, os.W_OK)
+            
+            self.checks.append({
+                "name": "Config Directory",
+                "status": "pass" if is_writable else "warn",
+                "message": config_dir
+            })
+            
+            return is_writable
+        except:
+            self.checks.append({
+                "name": "Config Directory",
+                "status": "fail",
+                "message": "Cannot create config directory"
+            })
+            return False
+    
+    def run_all_checks(self) -> Dict[str, Any]:
+        """Run all audit checks."""
+        self.checks = []
+        self.issues = []
+        
+        self.check_python_version()
+        self.check_devcontext_installed()
+        self.check_dependencies()
+        self.check_permissions()
+        
+        passed = sum(1 for c in self.checks if c["status"] == "pass")
+        failed = sum(1 for c in self.checks if c["status"] == "fail")
+        warnings = sum(1 for c in self.checks if c["status"] == "warn")
+        
         return {
-            "name": self.name,
-            "passed": self.passed,
-            "message": self.message,
-            "details": self.details
+            "total_checks": len(self.checks),
+            "passed": passed,
+            "failed": failed,
+            "warnings": warnings,
+            "checks": self.checks,
+            "issues": self.issues
         }
 
 
-def audit_filesystem(root: str = ".") -> List[AuditResult]:
-    """Audit filesystem structure."""
-    results = []
-    root_path = Path(root)
-    
-    # Check critical files exist
-    critical_files = [
-        "README.md",
-        "LICENSE",
-        "pyproject.toml",
-        "setup.py",
-        "src/devcontext/__init__.py",
-        "src/devcontext/cli.py",
-    ]
-    
-    for f in critical_files:
-        path = root_path / f
-        results.append(AuditResult(
-            f"File exists: {f}",
-            path.exists(),
-            "Found" if path.exists() else "Missing"
-        ))
-    
-    return results
-
-
-def audit_dependencies() -> List[AuditResult]:
-    """Audit Python dependencies."""
-    results = []
-    
-    # Check Python version
-    py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
-    results.append(AuditResult(
-        "Python version",
-        sys.version_info >= (3, 8),
-        f"Python {py_version} (requires 3.8+)"
-    ))
-    
-    # Check critical imports
-    critical_modules = ["json", "pathlib", "urllib", "re"]
-    for module in critical_modules:
-        try:
-            __import__(module)
-            results.append(AuditResult(f"Module: {module}", True, "Available"))
-        except ImportError:
-            results.append(AuditResult(f"Module: {module}", False, "Not available"))
-    
-    return results
-
-
-def audit_github_integration() -> List[AuditResult]:
-    """Audit GitHub-specific features."""
-    results = []
-    
-    # Check if .git exists
-    git_path = Path(".git")
-    results.append(AuditResult(
-        ".git directory",
-        git_path.exists(),
-        "Found" if git_path.exists() else "Not a git repository"
-    ))
-    
-    # Check GitHub Actions
-    actions_path = Path(".github/workflows")
-    if actions_path.exists():
-        workflows = list(actions_path.glob("*.yml")) + list(actions_path.glob("*.yaml"))
-        results.append(AuditResult(
-            "GitHub Actions",
-            len(workflows) > 0,
-            f"Found {len(workflows)} workflows"
-        ))
-    else:
-        results.append(AuditResult(
-            "GitHub Actions",
-            False,
-            "No workflows found"
-        ))
-    
-    return results
-
-
-def audit_permissions() -> List[AuditResult]:
-    """Audit file permissions."""
-    results = []
-    
-    # Check if we can write to current directory
-    test_file = Path(".audit_test")
-    try:
-        test_file.touch()
-        test_file.unlink()
-        results.append(AuditResult("Write permission", True, "Can write to current directory"))
-    except OSError:
-        results.append(AuditResult("Write permission", False, "Cannot write to current directory"))
-    
-    # Check if CLI is executable
-    cli_path = Path("src/devcontext/cli.py")
-    if cli_path.exists():
-        is_exec = os.access(cli_path, os.X_OK)
-        results.append(AuditResult(
-            "CLI executable",
-            is_exec,
-            "Executable" if is_exec else "Not executable (run chmod +x)"
-        ))
-    
-    return results
-
-
-def run_full_audit(root: str = ".") -> Dict[str, Any]:
-    """Run complete audit."""
-    all_results = []
-    
-    all_results.extend(audit_filesystem(root))
-    all_results.extend(audit_dependencies())
-    all_results.extend(audit_github_integration())
-    all_results.extend(audit_permissions())
-    
-    passed = sum(1 for r in all_results if r.passed)
-    failed = sum(1 for r in all_results if not r.passed)
-    
-    return {
-        "timestamp": datetime.now().isoformat(),
-        "total_checks": len(all_results),
-        "passed": passed,
-        "failed": failed,
-        "score": (passed / len(all_results) * 100) if all_results else 0,
-        "results": [r.to_dict() for r in all_results]
-    }
-
-
-def print_audit_report(audit: Dict[str, Any]):
-    """Print audit report in human-readable format."""
-    print("=" * 60)
-    print("DEVCONTEXT AUDIT REPORT")
-    print("=" * 60)
-    print(f"Timestamp: {audit['timestamp']}")
-    print(f"Score: {audit['score']:.1f}% ({audit['passed']}/{audit['total_checks']} passed)")
-    print()
-    
-    current_category = None
-    for result in audit['results']:
-        # Extract category from name
-        name = result['name']
-        if ':' in name:
-            category = name.split(':')[0]
-        else:
-            category = name
-        
-        if category != current_category:
-            print(f"\n[{category}]")
-            current_category = category
-        
-        status = "✅" if result['passed'] else "❌"
-        print(f"  {status} {result['name']}: {result['message']}")
-    
-    print()
-    print("=" * 60)
-    if audit['failed'] == 0:
-        print("🎉 All checks passed!")
-    else:
-        print(f"⚠️  {audit['failed']} checks failed")
-    print("=" * 60)
+def run_audit() -> Dict[str, Any]:
+    """Run full audit."""
+    checker = AuditChecker()
+    return checker.run_all_checks()
 
 
 # CLI
 def main():
     import argparse
     parser = argparse.ArgumentParser(description="Audit DevContext installation")
-    parser.add_argument("-p", "--path", default=".", help="Path to audit")
-    parser.add_argument("--json", action="store_true", help="JSON output")
+    parser.add_argument("-j", "--json", action="store_true", help="JSON output")
     
     args = parser.parse_args()
     
-    audit = run_full_audit(args.path)
+    result = run_audit()
     
     if args.json:
-        print(json.dumps(audit, indent=2))
+        print(json.dumps(result, indent=2))
     else:
-        print_audit_report(audit)
-    
-    return 0 if audit['failed'] == 0 else 1
+        print("DevContext Audit")
+        print("=" * 50)
+        print(f"Checks: {result['total_checks']}")
+        print(f"  ✅ Passed: {result['passed']}")
+        print(f"  ❌ Failed: {result['failed']}")
+        print(f"  ⚠️  Warnings: {result['warnings']}")
+        print()
+        
+        for check in result["checks"]:
+            status_icon = "✅" if check["status"] == "pass" else "❌" if check["status"] == "fail" else "⚠️"
+            print(f"{status_icon} {check['name']}: {check['message']}")
+        
+        if result["issues"]:
+            print("\nIssues:")
+            for issue in result["issues"]:
+                print(f"  - {issue}")
 
 
 if __name__ == "__main__":
-    exit(main())
+    main()
