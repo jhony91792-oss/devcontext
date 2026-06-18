@@ -1,129 +1,169 @@
-# Caching functionality for DevContext
+# Cache module for DevContext
 
 import os
 import json
 import hashlib
 import time
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Dict, Any, Optional, List
+from datetime import datetime, timedelta
 
 
-class ContextCache:
-    """Cache generated context to avoid regenerating unchanged codebases."""
+class CacheEntry:
+    """Represents a cached item."""
     
-    def __init__(self, cache_dir: Optional[str] = None):
-        if cache_dir is None:
-            cache_dir = Path.home() / ".cache" / "devcontext"
-        self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
+    def __init__(self, key: str, value: Any, ttl: int = None):
+        self.key = key
+        self.value = value
+        self.created = time.time()
+        self.ttl = ttl  # seconds, None = no expiration
     
-    def _get_cache_key(self, path: str, options: Dict[str, Any]) -> str:
-        """Generate cache key from path and options."""
-        key_data = json.dumps({
-            "path": str(Path(path).resolve()),
-            "options": options
-        }, sort_keys=True)
-        return hashlib.sha256(key_data.encode()).hexdigest()[:16]
-    
-    def _get_cache_path(self, key: str) -> Path:
-        """Get path for cache file."""
-        return self.cache_dir / f"{key}.json"
-    
-    def get(self, path: str, options: Dict[str, Any], max_age: int = 3600) -> Optional[Dict]:
-        """Get cached context if valid."""
-        key = self._get_cache_key(path, options)
-        cache_path = self._get_cache_path(key)
-        
-        if not cache_path.exists():
-            return None
-        
-        # Check age
-        age = time.time() - cache_path.stat().st_mtime
-        if age > max_age:
-            return None
-        
-        try:
-            with open(cache_path) as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return None
-    
-    def set(self, path: str, options: Dict[str, Any], context: Dict) -> bool:
-        """Save context to cache."""
-        key = self._get_cache_key(path, options)
-        cache_path = self._get_cache_path(key)
-        
-        try:
-            with open(cache_path, 'w') as f:
-                json.dump(context, f)
-            return True
-        except OSError:
+    def is_expired(self) -> bool:
+        """Check if entry is expired."""
+        if self.ttl is None:
             return False
+        return (time.time() - self.created) > self.ttl
     
-    def invalidate(self, path: str, options: Dict[str, Any]) -> bool:
-        """Remove cached context."""
-        key = self._get_cache_key(path, options)
-        cache_path = self._get_cache_path(key)
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "key": self.key,
+            "value": self.value,
+            "created": self.created,
+            "ttl": self.ttl
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CacheEntry":
+        """Create from dictionary."""
+        entry = cls(data["key"], data["value"], data.get("ttl"))
+        entry.created = data.get("created", time.time())
+        return entry
+
+
+class Cache:
+    """In-memory cache with optional persistence."""
+    
+    def __init__(self, max_size: int = 100, persist_path: str = None):
+        self.max_size = max_size
+        self.persist_path = persist_path
+        self._cache: Dict[str, CacheEntry] = {}
         
-        if cache_path.exists():
-            cache_path.unlink()
+        if persist_path:
+            self._load()
+    
+    def _load(self):
+        """Load cache from disk."""
+        if self.persist_path and Path(self.persist_path).exists():
+            try:
+                with open(self.persist_path) as f:
+                    data = json.load(f)
+                
+                for item in data.get("entries", []):
+                    entry = CacheEntry.from_dict(item)
+                    if not entry.is_expired():
+                        self._cache[entry.key] = entry
+            except:
+                pass
+    
+    def _save(self):
+        """Save cache to disk."""
+        if not self.persist_path:
+            return
+        
+        data = {
+            "entries": [e.to_dict() for e in self._cache.values()]
+        }
+        
+        Path(self.persist_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(self.persist_path, 'w') as f:
+            json.dump(data, f)
+    
+    def get(self, key: str) -> Optional[Any]:
+        """Get value from cache."""
+        if key not in self._cache:
+            return None
+        
+        entry = self._cache[key]
+        
+        if entry.is_expired():
+            del self._cache[key]
+            return None
+        
+        return entry.value
+    
+    def set(self, key: str, value: Any, ttl: int = None):
+        """Set value in cache."""
+        entry = CacheEntry(key, value, ttl)
+        self._cache[key] = entry
+        
+        # Enforce max size
+        if len(self._cache) > self.max_size:
+            # Remove oldest
+            oldest_key = min(self._cache.keys(), key=lambda k: self._cache[k].created)
+            del self._cache[oldest_key]
+        
+        self._save()
+    
+    def delete(self, key: str) -> bool:
+        """Delete from cache."""
+        if key in self._cache:
+            del self._cache[key]
+            self._save()
             return True
         return False
     
-    def clear(self) -> int:
-        """Clear all cached entries. Returns count of cleared entries."""
-        count = 0
-        for cache_file in self.cache_dir.glob("*.json"):
-            cache_file.unlink()
-            count += 1
-        return count
+    def clear(self):
+        """Clear all cache."""
+        self._cache = {}
+        self._save()
+    
+    def keys(self) -> List[str]:
+        """Get all cache keys."""
+        return list(self._cache.keys())
     
     def size(self) -> int:
-        """Get total cache size in bytes."""
-        total = 0
-        for cache_file in self.cache_dir.glob("*.json"):
-            total += cache_file.stat().st_size
-        return total
+        """Get cache size."""
+        return len(self._cache)
+
+
+def generate_cache_key(path: str, format: str = "json", **kwargs) -> str:
+    """Generate a cache key for a path."""
+    components = [path, format]
+    components.extend(f"{k}={v}" for k, v in sorted(kwargs.items()))
+    key_string = "|".join(components)
+    return hashlib.md5(key_string.encode()).hexdigest()
+
+
+# CLI
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="DevContext cache")
+    sub = parser.add_subparsers(dest="command")
     
-    def prune(self, max_age: int = 86400) -> int:
-        """Remove cache entries older than max_age seconds."""
-        count = 0
-        now = time.time()
-        
-        for cache_file in self.cache_dir.glob("*.json"):
-            age = now - cache_file.stat().st_mtime
-            if age > max_age:
-                cache_file.unlink()
-                count += 1
-        
-        return count
-
-
-# Global cache instance
-_cache: Optional[ContextCache] = None
-
-
-def get_cache() -> ContextCache:
-    """Get global cache instance."""
-    global _cache
-    if _cache is None:
-        _cache = ContextCache()
-    return _cache
-
-
-def cached_generate(path: str, options: Dict[str, Any], generator_func) -> Dict:
-    """Generate context with caching."""
-    cache = get_cache()
+    list_cmd = sub.add_parser("list", help="List cache entries")
     
-    # Try cache first
-    cached = cache.get(path, options)
-    if cached is not None:
-        return cached
+    clear_cmd = sub.add_parser("clear", help="Clear cache")
     
-    # Generate fresh
-    context = generator_func()
+    stats_cmd = sub.add_parser("stats", help="Show cache statistics")
     
-    # Save to cache
-    cache.set(path, options, context)
+    args = parser.parse_args()
     
-    return context
+    cache = Cache()
+    
+    if args.command == "list":
+        keys = cache.keys()
+        print(f"Cache entries: {len(keys)}")
+        for key in keys[:20]:
+            print(f"  {key}")
+    
+    elif args.command == "clear":
+        cache.clear()
+        print("Cache cleared")
+    
+    elif args.command == "stats":
+        print(f"Cache size: {cache.size()}/{cache.max_size}")
+
+
+if __name__ == "__main__":
+    main()
