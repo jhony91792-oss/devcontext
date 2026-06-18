@@ -1,132 +1,152 @@
-# Search module for DevContext - search within codebase
+# Search module for DevContext - search within context
 
+import json
 import re
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Pattern
+from typing import Dict, Any, List, Optional
 
 
-class CodeSearcher:
-    """Search within code files."""
+class ContextSearch:
+    """Search within DevContext data."""
     
-    def __init__(self, root: str = "."):
-        self.root = Path(root).resolve()
-        self.results = []
+    def __init__(self, context: Dict[str, Any]):
+        self.context = context
+        self.files = context.get("files", {})
     
-    def search_content(self, pattern: str, 
-                       file_types: Optional[List[str]] = None,
-                       case_sensitive: bool = False) -> List[Dict[str, Any]]:
-        """Search for pattern in file contents."""
+    def search_files(self, pattern: str, regex: bool = False) -> List[Dict[str, Any]]:
+        """Search for files matching pattern."""
         results = []
         
-        if file_types is None:
-            file_types = ['.py', '.js', '.ts', '.go', '.rs', '.java', '.rb', '.php']
-        
-        flags = 0 if case_sensitive else re.IGNORECASE
-        compiled: Pattern = re.compile(pattern, flags)
-        
-        for path in self.root.rglob('*'):
-            if path.is_file() and any(str(path).endswith(ext) for ext in file_types):
-                try:
-                    content = path.read_text(errors='ignore')
-                    for i, line in enumerate(content.split('\n'), 1):
-                        if compiled.search(line):
-                            results.append({
-                                'file': str(path.relative_to(self.root)),
-                                'line': i,
-                                'text': line.strip(),
-                                'path': str(path)
-                            })
-                except Exception:
-                    pass
-        
-        self.results = results
-        return results
-    
-    def search_by_name(self, pattern: str) -> List[str]:
-        """Search for files by name pattern."""
-        results = []
-        flags = 0 if pattern.islower() else re.IGNORECASE
-        compiled = re.compile(pattern, flags)
-        
-        for path in self.root.rglob('*'):
-            if path.is_file() and compiled.search(path.name):
-                results.append(str(path.relative_to(self.root)))
+        if regex:
+            compiled = re.compile(pattern)
+            for path in self.files:
+                if compiled.search(path):
+                    results.append({
+                        "type": "file",
+                        "path": path,
+                        "match": path
+                    })
+        else:
+            pattern_lower = pattern.lower()
+            for path in self.files:
+                if pattern_lower in path.lower():
+                    results.append({
+                        "type": "file",
+                        "path": path,
+                        "match": path
+                    })
         
         return results
     
-    def find_functions(self, name: str = None) -> List[Dict[str, Any]]:
-        """Find all function definitions, optionally filtered by name."""
-        from devcontext.parser import parse_file, extract_structure
-        
+    def search_functions(self, pattern: str, regex: bool = False) -> List[Dict[str, Any]]:
+        """Search for functions matching pattern."""
         results = []
         
-        for path in self.root.rglob('*.py'):
-            try:
-                info = parse_file(path)
-                for func in info.get('functions', []):
-                    if name is None or name.lower() in func.lower():
+        for path, info in self.files.items():
+            if not isinstance(info, dict):
+                continue
+            
+            funcs = info.get("functions", [])
+            for func in funcs:
+                if regex:
+                    if re.search(pattern, func):
                         results.append({
-                            'file': str(path.relative_to(self.root)),
-                            'function': func
+                            "type": "function",
+                            "file": path,
+                            "name": func,
+                            "match": func
                         })
-            except Exception:
-                pass
+                else:
+                    if pattern.lower() in func.lower():
+                        results.append({
+                            "type": "function",
+                            "file": path,
+                            "name": func,
+                            "match": func
+                        })
         
         return results
     
-    def find_classes(self, name: str = None) -> List[Dict[str, Any]]:
-        """Find all class definitions, optionally filtered by name."""
-        from devcontext.parser import parse_file
-        
+    def search_classes(self, pattern: str, regex: bool = False) -> List[Dict[str, Any]]:
+        """Search for classes matching pattern."""
         results = []
         
-        for path in self.root.rglob('*.py'):
-            try:
-                info = parse_file(path)
-                for cls in info.get('classes', []):
-                    if name is None or name.lower() in cls.lower():
+        for path, info in self.files.items():
+            if not isinstance(info, dict):
+                continue
+            
+            classes = info.get("classes", [])
+            for cls in classes:
+                if regex:
+                    if re.search(pattern, cls):
                         results.append({
-                            'file': str(path.relative_to(self.root)),
-                            'class': cls
+                            "type": "class",
+                            "file": path,
+                            "name": cls,
+                            "match": cls
                         })
-            except Exception:
-                pass
+                else:
+                    if pattern.lower() in cls.lower():
+                        results.append({
+                            "type": "class",
+                            "file": path,
+                            "name": cls,
+                            "match": cls
+                        })
         
+        return results
+    
+    def search_all(self, pattern: str, regex: bool = False) -> List[Dict[str, Any]]:
+        """Search everywhere."""
+        results = []
+        results.extend(self.search_files(pattern, regex))
+        results.extend(self.search_functions(pattern, regex))
+        results.extend(self.search_classes(pattern, regex))
         return results
 
 
-def search_codebase(pattern: str, root: str = ".") -> List[Dict[str, Any]]:
+def search_context(context: Dict[str, Any], pattern: str, **kwargs) -> List[Dict[str, Any]]:
     """Quick search function."""
-    searcher = CodeSearcher(root)
-    return searcher.search_content(pattern)
+    searcher = ContextSearch(context)
+    return searcher.search_all(pattern, **kwargs)
 
 
 # CLI
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Search DevContext codebase")
-    parser.add_argument("pattern", help="Pattern to search")
-    parser.add_argument("-r", "--root", default=".", help="Root directory")
-    parser.add_argument("-t", "--type", help="File types (comma-separated)")
-    parser.add_argument("-i", "--case-insensitive", action="store_true")
-    parser.add_argument("-n", "--name-only", action="store_true")
+    parser = argparse.ArgumentParser(description="Search DevContext")
+    parser.add_argument("pattern", help="Search pattern")
+    parser.add_argument("-f", "--files", action="store_true", help="Search files")
+    parser.add_argument("-F", "--functions", action="store_true", help="Search functions")
+    parser.add_argument("-C", "--classes", action="store_true", help="Search classes")
+    parser.add_argument("-r", "--regex", action="store_true", help="Use regex")
+    parser.add_argument("input", help="Context JSON file")
     
     args = parser.parse_args()
     
-    searcher = CodeSearcher(args.root)
+    with open(args.input) as f:
+        context = json.load(f)
     
-    if args.name_only:
-        results = searcher.search_by_name(args.pattern)
-        for r in results:
-            print(r)
-    else:
-        file_types = args.type.split(',') if args.type else None
-        results = searcher.search_content(args.pattern, file_types, not args.case_insensitive)
-        
-        for r in results:
-            print(f"{r['file']}:{r['line']}: {r['text'][:80]}")
+    searcher = ContextSearch(context)
     
-    print(f"\nFound {len(results)} matches")
+    search_files = args.files or not (args.functions or args.classes)
+    search_funcs = args.functions or not (args.files or args.classes)
+    search_classes = args.classes or not (args.files or args.functions)
+    
+    results = []
+    
+    if search_files:
+        results.extend(searcher.search_files(args.pattern, args.regex))
+    if search_funcs:
+        results.extend(searcher.search_functions(args.pattern, args.regex))
+    if search_classes:
+        results.extend(searcher.search_classes(args.pattern, args.regex))
+    
+    print(f"Found {len(results)} results:")
+    for r in results[:20]:
+        print(f"  [{r['type']}] {r.get('file', '')}: {r['name']}")
+    
+    if len(results) > 20:
+        print(f"  ... and {len(results) - 20} more")
 
 
 if __name__ == "__main__":
