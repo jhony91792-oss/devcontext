@@ -6,39 +6,49 @@ How to test DevContext.
 
 ```bash
 # Run all tests
-python3 test_runner.py
+pytest
+
+# Run with coverage
+pytest --cov=src/devcontext --cov-report=html
 
 # Run specific test
-python3 test_runner.py TestLanguageDetection
+pytest tests/test_devcontext.py -v
 ```
-
-## Test Categories
-
-### Unit Tests
-- Language detection
-- File parsing
-- Output formatting
-
-### Integration Tests
-- Full context generation
-- CLI commands
-- File system operations
 
 ## Writing Tests
 
 ```python
-def test_my_feature():
-    """Test description."""
-    # Arrange
-    # Act
-    # Assert
+import pytest
+from devcontext import DevContext
+
+def test_basic_generation():
+    dc = DevContext(".")
+    context = dc.generate()
+    assert context is not None
+    assert "version" in context
 ```
 
-## CI/CD
+## Test Structure
 
-All tests run automatically via GitHub Actions:
-- Push to main
-- Pull requests
-- Daily schedule
+```
+tests/
+├── test_devcontext.py    # Main tests
+├── test_cli.py           # CLI tests
+├── test_analyzer.py      # Analyzer tests
+└── ...
+```
 
-See `.github/workflows/test.yml`
+## CI/CD Testing
+
+Tests run automatically on every push via GitHub Actions.
+
+```yaml
+# .github/workflows/test.yml
+- name: Test
+  run: pytest
+```
+
+## Coverage Requirements
+
+- Minimum 80% coverage for new code
+- 100% coverage for critical paths
