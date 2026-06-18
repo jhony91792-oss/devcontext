@@ -1,0 +1,27 @@
+name: Code Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Run code quality check
+        run: |
+          python3 -m py_compile src/devcontext/*.py
+          echo "✅ All Python files compile successfully"
+          
+      - name: Verify test coverage
+        run: |
+          export PYTHONPATH="$PWD/src"
+          python3 test_runner.py
