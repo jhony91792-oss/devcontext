@@ -1,132 +1,94 @@
-# DevContext — Architecture
+# Architecture
+
+DevContext architecture overview.
 
 ## Overview
 
-DevContext is a CLI tool that generates AI-ready context from codebases. It's designed to be:
-- **Fast**: Processes 10k files in 30 seconds
-- **Lightweight**: Zero dependencies
-- **Extensible**: Easy to add new language support
-
-## Architecture Diagram
+DevContext follows a modular architecture with clear separation of concerns.
 
 ```
-User Input (CLI)
-     │
-     ▼
-┌─────────────────┐
-│   cli.py        │  Entry point, argument parsing
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   tree.py       │  File system scanning
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  parser.py      │  Language detection, code parsing
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│ analyzer.py     │  Complexity, frameworks, endpoints
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│  output.py      │  JSON/MD/Compact formatters
-└────────┬────────┘
-         │
-         ▼
-   AI-Ready Output
+devcontext/
+├── src/devcontext/       # Main package
+│   ├── __init__.py       # Package entry
+│   ├── cli.py            # CLI interface
+│   ├── analyzer.py       # Code analysis
+│   ├── parser.py         # File parsing
+│   └── ...               # Feature modules
+├── tests/                # Test suite
+└── docs/                 # Documentation
 ```
 
-## Components
+## Core Components
 
-### cli.py
-Main entry point. Handles:
-- Command-line argument parsing
-- Orchestrating the pipeline
-- Output formatting
+### 1. CLI Layer (`cli.py`)
+Entry point for command-line interface.
+- Parses arguments
+- Routes commands
+- Formats output
 
-### tree.py
-File system operations:
-- Recursive directory traversal
-- Smart filtering (.gitignore-style rules)
-- Skip common non-source directories
+### 2. Core Engine (`DevContext` class)
+Main context generation logic.
+- Scans directories
+- Collects file info
+- Aggregates metadata
 
-### parser.py
-Code analysis:
-- Language detection by extension
-- Regex-based parsing for functions, classes, imports
-- Support for 20+ languages
+### 3. Analyzer (`analyzer.py`)
+Language-specific code analysis.
+- Parses source files
+- Extracts functions/classes
+- Detects imports
 
-### analyzer.py
-Advanced analysis (optional):
-- Complexity metrics
-- Framework detection
-- API endpoint extraction
-- Code smell detection
+### 4. Parser (`parser.py`)
+File type detection and parsing.
+- Identifies language by extension
+- Routes to appropriate parser
 
-### output.py
-Output formatting:
-- JSON (default, AI-optimized)
-- Markdown (human-readable)
-- Compact (minimal for AI prompts)
+### 5. Output Formatters
+Multiple output format support.
+- JSON (default)
+- Markdown
+- HTML
+- Compact
+
+## Module Categories
+
+### Data Processing
+- `analyzer.py` - Code analysis
+- `parser.py` - File parsing
+- `tree.py` - Directory tree
+
+### Output
+- `output.py` - Output formatting
+- `export.py` - Multi-format export
+- `report.py` - Report generation
+
+### Integration
+- `api_client.py` - Python API
+- `hooks.py` - Git hooks
+- `notifiers.py` - Notifications
+- `webhooks.py` - Webhook support
+
+### Utilities
+- `cache.py` - Caching
+- `config.py` - Configuration
+- `stats.py` - Statistics
+- `search.py` - Search
 
 ## Data Flow
 
-1. **Input**: User provides path via CLI
-2. **Scan**: `tree.py` recursively lists files
-3. **Filter**: Removes noise (node_modules, __pycache__, etc.)
-4. **Parse**: `parser.py` extracts code structure
-5. **Analyze**: `analyzer.py` computes metrics (if requested)
-6. **Format**: `output.py` formats for output
-7. **Output**: JSON/MD displayed or saved to file
-
-## Extending DevContext
-
-### Adding Language Support
-
-1. Add extension to `LANG_MAP` in `parser.py`:
-```python
-'.xyz': 'mylang',
+```
+User Input → CLI → DevContext → Analyzer → Parser → Context
+                                                      ↓
+                                               Formatter → Output
 ```
 
-2. Add regex patterns for your language:
-```python
-'mylang': {
-    'function': r'...',
-    'class': r'...',
-    'import': r'...',
-},
-```
+## Extension Points
 
-3. Add tests in `tests/test_devcontext.py`
+### Custom Analyzers
+Add language support by implementing `Analyzer` interface.
 
-### Adding Output Formats
+### Plugins
+Use plugin system for custom hooks.
 
-1. Add formatter function in `output.py`
-2. Add CLI flag in `cli.py`
-3. Add tests
-
-## Performance Considerations
-
-- **Streaming**: Large directories processed incrementally
-- **Caching**: GitHub Actions cache for dependencies
-- **Parallel**: Can be extended to use multiprocessing for very large repos
-
-## Security
-
-- All processing is local
-- No network requests for code analysis
-- No external dependencies (attack surface = 0)
-- GitHub Pages served via GitHub's CDN
-
-## Future Architecture
-
-Planned improvements:
-- AST-based parsing for precise code analysis
-- Language Server Protocol (LSP) integration
-- WebAssembly for browser-based execution
-- gRPC API for programmatic access
+### Templates
+Create custom output templates.
