@@ -1,70 +1,86 @@
-# FAQ — Frequently Asked Questions
+# FAQ
+
+Frequently asked questions about DevContext.
 
 ## General
 
-**Q: What is DevContext?**
-A: DevContext is a CLI tool that generates AI-ready context from any codebase, helping AI assistants understand your project instantly.
+### What is DevContext?
+DevContext is a CLI tool that generates AI-ready context from codebases. Instead of manually explaining your project to an AI assistant, you run one command and get a complete context dump in 3 seconds.
 
-**Q: Why was it created?**
-A: Developers spend 10-15 minutes per AI session explaining their project. DevContext reduces this to 3 seconds.
+### Why use DevContext?
+- Save 10-15 minutes per AI coding session
+- Get consistent, complete context
+- Never miss important details
+- Works offline, no API keys needed
 
-**Q: Is it free?**
-A: Yes, completely free and open source under MIT license.
+### Is it free?
+Yes, DevContext is 100% free and open source under MIT license.
 
 ## Installation
 
-**Q: How do I install DevContext?**
-A: `pip install devcontext`
+### How do I install DevContext?
+```bash
+pip install devcontext
+```
 
-**Q: What are the requirements?**
-A: Python 3.8+ and no external dependencies.
+### What are the requirements?
+- Python 3.8 or higher
+- pip or pip3
 
-**Q: It says "command not found"**
-A: Make sure your pip bin directory is in PATH. Try `pip install --user devcontext`.
+### Can I install from source?
+```bash
+git clone https://github.com/jhony91792-oss/devcontext.git
+cd devcontext
+pip install -e .
+```
 
 ## Usage
 
-**Q: What languages are supported?**
-A: Python, JavaScript, TypeScript, Go, Rust, Java, C/C++, Ruby, PHP, Swift, Kotlin, Scala, and 15+ more.
+### How do I use it?
+```bash
+# Generate context
+devcontext generate .
 
-**Q: Can I use it with specific AI tools?**
-A: Yes! DevContext works with ChatGPT, Claude, Copilot, and any other AI that accepts text input.
+# Copy to clipboard for AI
+devcontext generate . -f compact | pbcopy
+```
 
-**Q: Does it work offline?**
-A: Yes, DevContext works completely offline with no external services.
+### What formats are supported?
+- JSON (default)
+- Markdown
+- HTML
+- Compact (minified JSON)
 
-**Q: My project is large. Will it handle it?**
-A: Yes, DevContext is optimized to handle 10,000+ files efficiently.
-
-## Technical
-
-**Q: How does it work?**
-A: DevContext recursively scans your project, parses code structure, and formats it as AI-optimized JSON or Markdown.
-
-**Q: Is my code sent anywhere?**
-A: No. All processing happens locally. Your code never leaves your machine.
-
-**Q: Can I contribute?**
-A: Yes! See CONTRIBUTING.md for details.
+### How do I exclude directories?
+Create a `.devcontextrc` file:
+```json
+{
+    "skip_dirs": ["node_modules", ".git"]
+}
+```
 
 ## Troubleshooting
 
-**Q: Tests are failing**
-A: Make sure you're using Python 3.8+. Run tests with `python3 test_runner.py`.
+### No files found
+- Check the path is correct
+- Try with `-a` flag for analysis
+- Verify files have supported extensions
 
-**Q: Missing language support**
-A: Open an issue requesting support for your language.
+### Slow on large projects
+- Use `--max-depth` to limit scan depth
+- Add large directories to skip list
 
-**Q: How do I report bugs?**
-A: Use GitHub Issues with the bug report template.
+### Memory issues
+- Scan subdirectories separately
+- Use compact format
 
-## Misc
+## GitHub
 
-**Q: How do I cite DevContext?**
-A: Link to the GitHub repo: https://github.com/jhony91792-oss/devcontext
+### How do I star the project?
+Visit https://github.com/jhony91792-oss/devcontext and click the star button.
 
-**Q: Will there be a web interface?**
-A: Possibly in the future. Star the repo to follow development.
+### How do I report issues?
+Open an issue at https://github.com/jhony91792-oss/devcontext/issues
 
-**Q: Can I sponsor development?**
-A: See FUNDING.yml for support options.
+### Can I contribute?
+Yes! Open a pull request. See CONTRIBUTING.md for details.
