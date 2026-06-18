@@ -1,207 +1,189 @@
-#!/usr/bin/env python3
-"""
-DevContext CLI — AI-Ready Codebase Context Generator
+"""DevContext CLI - Main entry point."""
 
-Usage:
-    devcontext generate <path> [--output FILE] [--format json|md|compact]
-    devcontext tree <path> [--max-depth N]
-    devcontext parse <path> [--files GLOB]
-    devcontext --version
-"""
-
-import argparse
-import json
+import os
 import sys
+import argparse
 from pathlib import Path
 
-from devcontext import __version__
+# Import all modules
 from devcontext.tree import FileTree, scan_directory
-from devcontext.parser import parse_file, detect_language
-from devcontext.output import format_json, format_markdown, format_compact
+from devcontext.parser import detect_language, parse_file
+from devcontext.output import format_json, format_markdown, format_compact, format_html
+from devcontext.analyzer import analyze_codebase
+from devcontext import __version__
 
 
-def generate_context(root: Path, max_depth: int = 5) -> dict:
-    """Generate full context for a codebase."""
-    # Scan file tree
-    tree = FileTree(root, max_depth)
+def generate_context(args):
+    """Generate context for a codebase."""
+    path = Path(args.path).resolve()
+    
+    if not path.exists():
+        print(f"Error: Path '{path}' does not exist", file=sys.stderr)
+        return 1
+    
+    # Scan directory
+    tree = FileTree(path, max_depth=args.max_depth)
     nodes = tree.scan()
     
-    # Parse key source files
-    structure = {}
-    key_content = {}
-    
+    # Parse files
+    files = {}
     for node in nodes:
-        if node['type'] != 'file':
-            continue
-        
-        fpath = root / node['path']
-        if not fpath.exists():
-            continue
-        
-        # Parse source files
-        ext = node.get('ext', '')
-        if ext in {'.py', '.js', '.ts', '.go', '.rs', '.java', '.rb', '.php'}:
-            parsed = parse_file(fpath)
-            structure[node['path']] = {
-                'language': parsed.get('language'),
-                'functions': parsed.get('functions', [])[:20],  # Limit per file
-                'classes': parsed.get('classes', []),
-                'imports': parsed.get('imports', [])[:10],
-            }
-        
-        # Extract key file content
-        key_files = {'README.md', 'pyproject.toml', 'setup.py', 'package.json', 
-                     'Cargo.toml', 'go.mod', 'requirements.txt', 'Dockerfile'}
-        if node['path'] in key_files:
+        if node['type'] == 'file':
             try:
-                content = fpath.read_text(encoding='utf-8', errors='replace')
-                key_content[node['path']] = {
-                    'type': node['path'].split('.')[-1],
-                    'preview': content[:2000]
-                }
+                info = parse_file(node['path'])
+                files[node['path']] = info
             except Exception:
                 pass
     
-    # Count files by language
-    lang_counts = {}
-    for path, info in structure.items():
-        lang = info.get('language', 'unknown')
-        lang_counts[lang] = lang_counts.get(lang, 0) + 1
-    
-    return {
-        'tool': 'DevContext',
-        'version': __version__,
-        'root': str(root),
-        'file_tree': nodes,
-        'structure': structure,
-        'key_files': key_content,
-        'summary': {
-            'total_files': len([n for n in nodes if n['type'] == 'file']),
-            'total_dirs': len([n for n in nodes if n['type'] == 'dir']),
-            'by_language': lang_counts,
-        }
+    # Analyze if requested
+    metadata = {
+        'total_files': len(files),
+        'languages': list(set(f.get('language') for f in files.values() if f.get('language'))),
     }
-
-
-def cmd_generate(args: argparse.Namespace):
-    """Generate context command."""
-    if not args.path.exists():
-        print(f"Error: Path not found: {args.path}", file=sys.stderr)
-        sys.exit(1)
     
-    ctx = generate_context(args.path, max_depth=args.max_depth)
+    if args.analyze:
+        analysis = analyze_codebase({'files': files, 'metadata': metadata})
+        metadata.update(analysis)
     
+    context = {
+        'version': __version__,
+        'generated': str(Path(path).name),
+        'files': files,
+        'metadata': metadata,
+    }
+    
+    # Format output
     if args.format == 'json':
-        output = format_json(ctx)
-    elif args.format == 'compact':
-        output = format_compact(ctx)
+        output = format_json(context)
+    elif args.format == 'md':
+        output = format_markdown(context)
+    elif args.format == 'html':
+        output = format_html(context)
     else:
-        output = format_markdown(ctx)
+        output = format_compact(context)
     
+    # Write or print
     if args.output:
-        args.output.write_text(output)
-        print(f"✅ Context saved to {args.output}")
+        with open(args.output, 'w') as f:
+            f.write(output)
+        print(f"Context written to {args.output}")
     else:
         print(output)
-
-
-def cmd_tree(args: argparse.Namespace):
-    """Show file tree command."""
-    if not args.path.exists():
-        print(f"Error: Path not found: {args.path}", file=sys.stderr)
-        sys.exit(1)
     
-    tree = FileTree(args.path, args.max_depth)
+    return 0
+
+
+def show_tree(args):
+    """Show file tree."""
+    path = Path(args.path).resolve()
+    
+    if not path.exists():
+        print(f"Error: Path '{path}' does not exist", file=sys.stderr)
+        return 1
+    
+    tree = FileTree(path, max_depth=args.max_depth)
     nodes = tree.scan()
     
     for node in nodes:
-        indent = "  " * node.get('depth', 0)
+        depth = node.get('depth', 0)
+        indent = "  " * depth
+        name = Path(node['path']).name
         if node['type'] == 'dir':
-            print(f"{indent}📁 {node['path']}/")
+            print(f"{indent}📁 {name}/")
         else:
-            print(f"{indent}📄 {node['path']}")
-
-
-def cmd_parse(args: argparse.Namespace):
-    """Parse files command."""
-    if not args.path.exists():
-        print(f"Error: Path not found: {args.path}", file=sys.stderr)
-        sys.exit(1)
+            lang = detect_language(node['path'])
+            if args.show_lang:
+                print(f"{indent}📄 {name} ({lang})")
+            else:
+                print(f"{indent}📄 {name}")
     
-    if args.path.is_file():
-        result = parse_file(args.path)
-        print(json.dumps(result, indent=2))
+    return 0
+
+
+def parse_single_file(args):
+    """Parse a single file."""
+    path = Path(args.file).resolve()
+    
+    if not path.exists():
+        print(f"Error: File '{path}' does not exist", file=sys.stderr)
+        return 1
+    
+    info = parse_file(path)
+    
+    if args.format == 'json':
+        print(format_json({'files': {str(path): info}}))
     else:
-        # Parse all files in directory
-        nodes = scan_directory(args.path, max_depth=args.max_depth)
-        files = [args.path / n['path'] for n in nodes if n['type'] == 'file']
-        
-        results = []
-        for f in files[:50]:  # Limit to 50 files
-            result = parse_file(f)
-            results.append({
-                'path': result['path'],
-                'language': result.get('language'),
-                'functions': result.get('functions', [])[:10],
-                'classes': result.get('classes', []),
-            })
-        
-        print(json.dumps(results, indent=2))
+        print(f"Language: {info.get('language', 'unknown')}")
+        print(f"Lines: {info.get('lines', 0)}")
+        if info.get('functions'):
+            print(f"\nFunctions ({len(info['functions'])}):")
+            for f in info['functions'][:10]:
+                print(f"  - {f}")
+        if info.get('classes'):
+            print(f"\nClasses ({len(info['classes'])}):")
+            for c in info['classes'][:10]:
+                print(f"  - {c}")
+        if info.get('imports'):
+            print(f"\nImports ({len(info['imports'])}):")
+            for imp in info['imports'][:10]:
+                print(f"  - {imp}")
+    
+    return 0
 
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="devcontext",
-        description="🔮 DevContext — AI-Ready Codebase Context Generator",
+        description="DevContext - AI-Ready Context Generator",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  devcontext generate .                    Generate context for current directory
-  devcontext generate . -o context.json    Save to file
-  devcontext generate . -f md              Output as Markdown
-  devcontext tree . --max-depth 3          Show file tree only
-  devcontext parse . --files "*.py"        Parse Python files
+  devcontext generate . -f compact
+  devcontext tree . --max-depth 3
+  devcontext parse main.py
+
+For more help: https://github.com/jhony91792-oss/devcontext
         """
     )
     
-    parser.add_argument('--version', action='store_true', help='Show version')
+    parser.add_argument("--version", action="version", version=f"DevContext {__version__}")
     
-    sub = parser.add_subparsers(dest='command', help='Commands')
+    sub = parser.add_subparsers(dest="command", help="Commands")
     
     # generate command
-    gen = sub.add_parser('generate', help='Generate context from codebase')
-    gen.add_argument('path', type=Path, help='Path to codebase')
-    gen.add_argument('-o', '--output', type=Path, help='Output file')
-    gen.add_argument('-f', '--format', choices=['json', 'md', 'compact'], 
-                     default='json', help='Output format')
-    gen.add_argument('--max-depth', type=int, default=5, help='Max tree depth')
-    gen.set_defaults(func=cmd_generate)
+    gen = sub.add_parser("generate", help="Generate context for a codebase")
+    gen.add_argument("path", nargs="?", default=".", help="Project path (default: .)")
+    gen.add_argument("-o", "--output", help="Output file")
+    gen.add_argument("-f", "--format", choices=["json", "md", "html", "compact"],
+                     default="json", help="Output format")
+    gen.add_argument("--max-depth", type=int, default=10, help="Max directory depth")
+    gen.add_argument("--no-stats", dest="stats", action="store_false", default=True,
+                     help="Don't show statistics")
+    gen.add_argument("-a", "--analyze", action="store_true", help="Enable code analysis")
     
     # tree command
-    tree = sub.add_parser('tree', help='Show file tree')
-    tree.add_argument('path', type=Path, help='Path to codebase')
-    tree.add_argument('--max-depth', type=int, default=5, help='Max depth')
-    tree.set_defaults(func=cmd_tree)
+    tree = sub.add_parser("tree", help="Show project file tree")
+    tree.add_argument("path", nargs="?", default=".", help="Project path (default: .)")
+    tree.add_argument("--max-depth", type=int, default=10, help="Max directory depth")
+    tree.add_argument("--show-lang", action="store_true", help="Show language per file")
     
     # parse command
-    parse = sub.add_parser('parse', help='Parse code structure')
-    parse.add_argument('path', type=Path, help='Path to file or directory')
-    parse.add_argument('--files', help='File filter (e.g. "*.py")')
-    parse.add_argument('--max-depth', type=int, default=5, help='Max depth')
-    parse.set_defaults(func=cmd_parse)
+    parse = sub.add_parser("parse", help="Parse a single file")
+    parse.add_argument("file", help="File to parse")
+    parse.add_argument("-f", "--format", choices=["json", "text"],
+                       default="text", help="Output format")
     
     args = parser.parse_args()
     
-    if args.version:
-        print(f"DevContext v{__version__}")
-        return
-    
-    if args.command is None:
+    if args.command == "generate":
+        return generate_context(args)
+    elif args.command == "tree":
+        return show_tree(args)
+    elif args.command == "parse":
+        return parse_single_file(args)
+    else:
         parser.print_help()
-        return
-    
-    args.func(args)
+        return 0
 
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    sys.exit(main() or 0)
