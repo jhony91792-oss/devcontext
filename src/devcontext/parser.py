@@ -1,147 +1,200 @@
-"""Language-agnostic code parser for DevContext."""
+# Parser module for DevContext - language-specific parsing
 
+import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Dict, Any, List, Optional, Callable
 
 
-# Language detection based on file extension
-LANG_MAP = {
-    '.py': 'python',
-    '.js': 'javascript',
-    '.mjs': 'javascript',
-    '.cjs': 'javascript',
-    '.ts': 'typescript',
-    '.tsx': 'typescript',
-    '.jsx': 'javascript',
-    '.go': 'go',
-    '.rs': 'rust',
-    '.java': 'java',
-    '.c': 'c',
-    '.cpp': 'cpp',
-    '.h': 'c',
-    '.hpp': 'cpp',
-    '.cs': 'csharp',
-    '.rb': 'ruby',
-    '.php': 'php',
-    '.swift': 'swift',
-    '.kt': 'kotlin',
-    '.scala': 'scala',
-    '.vue': 'vue',
-    '.svelte': 'svelte',
-}
-
-# Patterns for extracting code structure
-PATTERNS = {
-    'python': {
-        'function': r'(?:^|\n)\s*(?:def|async def)\s+(\w+)\s*\(',
-        'class': r'(?:^|\n)\s*class\s+(\w+)',
-        'import': r'(?:^|\n)\s*(?:from\s+[\w.]+\s+)?import\s+',
-        'decorator': r'@\w+',
-        'comment': r'#\s*(.+)',
-    },
-    'javascript': {
-        'function': r'(?:^|\n)\s*(?:function\s+(\w+)|(?:const|let|var)\s+(\w+)\s*=?\s*(?:async\s+)?\(|(\w+)\s*:\s*(?:async\s+)?\()',
-        'class': r'(?:^|\n)\s*class\s+(\w+)',
-        'import': r'(?:^|\n)\s*(?:import\s+.*?from\s+[\'"].*?[\'"])',
-        'export': r'(?:^|\n)\s*export\s+',
-    },
-    'typescript': {
-        'function': r'(?:^|\n)\s*(?:function\s+(\w+)|(?:const|let|var)\s+(\w+)\s*=?\s*(?:async\s+)?\(|(\w+)\s*:\s*(?:async\s+)?\()',
-        'class': r'(?:^|\n)\s*class\s+(\w+)',
-        'interface': r'(?:^|\n)\s*interface\s+(\w+)',
-        'type': r'(?:^|\n)\s*type\s+(\w+)',
-        'import': r'(?:^|\n)\s*(?:import\s+.*?from\s+[\'"].*?[\'"])',
-        'export': r'(?:^|\n)\s*export\s+',
-    },
-    'go': {
-        'function': r'(?:^|\n)\s*func\s+(?:\([^)]+\)\s+)?(\w+)\s*\(',
-        'struct': r'(?:^|\n)\s*type\s+(\w+)\s+struct',
-        'interface': r'(?:^|\n)\s*type\s+(\w+)\s+interface',
-        'import': r'(?:^|\n)\s*import\s+',
-        'package': r'(?:^|\n)\s*package\s+(\w+)',
-    },
-    'rust': {
-        'function': r'(?:^|\n)\s*(?:pub\s+)?(?:async\s+)?fn\s+(\w+)\s*\(',
-        'struct': r'(?:^|\n)\s*(?:pub\s+)?struct\s+(\w+)',
-        'enum': r'(?:^|\n)\s*(?:pub\s+)?enum\s+(\w+)',
-        'impl': r'(?:^|\n)\s*(?:pub\s+)?impl\s+',
-        'use': r'(?:^|\n)\s*use\s+',
-    },
-}
-
-
-def detect_language(path: str) -> str:
-    """Detect programming language from file path."""
-    ext = Path(path).suffix.lower()
-    return LANG_MAP.get(ext, 'unknown')
-
-
-def extract_structure(content: str, language: str) -> dict[str, Any]:
-    """Extract code structure from file content."""
-    result = {
-        'language': language,
-        'functions': [],
-        'classes': [],
-        'imports': [],
-        'exports': [],
-    }
+class BaseParser:
+    """Base class for language parsers."""
     
-    if language not in PATTERNS:
+    extensions: List[str] = []
+    
+    def parse(self, filepath: str, content: str) -> Dict[str, Any]:
+        """Parse file content."""
+        return {
+            "language": self.__class__.__name__,
+            "functions": [],
+            "classes": [],
+            "imports": []
+        }
+
+
+class PythonParser(BaseParser):
+    """Python source code parser."""
+    
+    extensions = [".py"]
+    
+    def parse(self, filepath: str, content: str) -> Dict[str, Any]:
+        """Parse Python file."""
+        result = {
+            "language": "python",
+            "functions": [],
+            "classes": [],
+            "imports": [],
+            "decorators": []
+        }
+        
+        lines = content.split("\n")
+        
+        for line in lines:
+            stripped = line.strip()
+            
+            # Imports
+            if stripped.startswith("import ") or stripped.startswith("from "):
+                match = re.match(r'(?:from\s+([\w.]+)\s+)?import\s+(.+)', stripped)
+                if match:
+                    result["imports"].append(stripped)
+            
+            # Classes
+            class_match = re.match(r'class\s+(\w+)', stripped)
+            if class_match:
+                result["classes"].append(class_match.group(1))
+            
+            # Functions
+            func_match = re.match(r'def\s+(\w+)', stripped)
+            if func_match:
+                result["functions"].append(func_match.group(1))
+            
+            # Decorators
+            if stripped.startswith("@"):
+                result["decorators"].append(stripped)
+        
         return result
-    
-    patterns = PATTERNS[language]
-    
-    # Extract functions
-    if 'function' in patterns:
-        for match in re.finditer(patterns['function'], content, re.MULTILINE):
-            name = match.group(1) or match.group(2) or match.group(3)
-            if name:
-                result['functions'].append(name)
-    
-    # Extract classes/structs/interfaces
-    plural_map = {'class': 'classes', 'struct': 'structs', 'interface': 'interfaces'}
-    for key in ['class', 'struct', 'interface']:
-        if key in patterns:
-            for match in re.finditer(patterns[key], content, re.MULTILINE):
-                result[plural_map[key]].append(match.group(1))
-    
-    # Extract imports
-    if 'import' in patterns:
-        for match in re.finditer(patterns['import'], content, re.MULTILINE):
-            imp = match.group(0).strip()
-            if len(imp) < 200:  # Skip very long imports
-                result['imports'].append(imp[:100])
-    
-    # Extract exports
-    if 'export' in patterns:
-        result['exports'] = len(re.findall(patterns['export'], content, re.MULTILINE))
-    
-    return result
 
 
-def parse_file(path: Path) -> dict[str, Any]:
-    """Parse a single file and return its structure."""
-    try:
-        content = path.read_text(encoding='utf-8', errors='replace')
-    except Exception:
-        return {'error': 'Could not read file'}
+class JavaScriptParser(BaseParser):
+    """JavaScript source code parser."""
     
-    language = detect_language(str(path))
-    structure = extract_structure(content, language)
+    extensions = [".js", ".mjs"]
     
-    # Count lines
-    lines = content.split('\n')
-    
-    return {
-        'path': str(path),
-        'language': language,
-        'lines': len(lines),
-        'size': len(content),
-        **structure
-    }
+    def parse(self, filepath: str, content: str) -> Dict[str, Any]:
+        """Parse JavaScript file."""
+        result = {
+            "language": "javascript",
+            "functions": [],
+            "classes": [],
+            "imports": []
+        }
+        
+        # Functions
+        func_patterns = [
+            r'function\s+(\w+)',
+            r'const\s+(\w+)\s*=\s*\([^)]*\)\s*=>',
+            r'(\w+)\s*:\s*function\s*\(',
+        ]
+        
+        for pattern in func_patterns:
+            for match in re.finditer(pattern, content):
+                result["functions"].append(match.group(1))
+        
+        # Classes
+        for match in re.finditer(r'class\s+(\w+)', content):
+            result["classes"].append(match.group(1))
+        
+        # Imports
+        for match in re.finditer(r'import\s+.+\s+from\s+[\'"](.+)[\'"]', content):
+            result["imports"].append(match.group(1))
+        
+        return result
 
 
-def parse_files(paths: list[Path]) -> list[dict[str, Any]]:
-    """Parse multiple files."""
-    return [parse_file(p) for p in paths if p.exists()]
+class TypeScriptParser(BaseParser):
+    """TypeScript source code parser."""
+    
+    extensions = [".ts", ".tsx"]
+    
+    def parse(self, filepath: str, content: str) -> Dict[str, Any]:
+        """Parse TypeScript file."""
+        result = {
+            "language": "typescript",
+            "functions": [],
+            "classes": [],
+            "interfaces": [],
+            "imports": []
+        }
+        
+        # Functions
+        for match in re.finditer(r'(?:function|const)\s+(\w+)\s*[=\(]', content):
+            result["functions"].append(match.group(1))
+        
+        # Classes
+        for match in re.finditer(r'class\s+(\w+)', content):
+            result["classes"].append(match.group(1))
+        
+        # Interfaces
+        for match in re.finditer(r'interface\s+(\w+)', content):
+            result["interfaces"].append(match.group(1))
+        
+        # Imports
+        for match in re.finditer(r'import\s+.+\s+from\s+[\'"](.+)[\'"]', content):
+            result["imports"].append(match.group(1))
+        
+        return result
+
+
+class ParserManager:
+    """Manage all parsers."""
+    
+    def __init__(self):
+        self.parsers: Dict[str, BaseParser] = {}
+        self._register_default_parsers()
+    
+    def _register_default_parsers(self):
+        """Register default parsers."""
+        self.register(PythonParser())
+        self.register(JavaScriptParser())
+        self.register(TypeScriptParser())
+    
+    def register(self, parser: BaseParser):
+        """Register a parser."""
+        for ext in parser.extensions:
+            self.parsers[ext] = parser
+    
+    def get_parser(self, filepath: str) -> Optional[BaseParser]:
+        """Get parser for file."""
+        ext = Path(filepath).suffix.lower()
+        return self.parsers.get(ext)
+    
+    def parse(self, filepath: str) -> Dict[str, Any]:
+        """Parse a file."""
+        parser = self.get_parser(filepath)
+        
+        if not parser:
+            return {"language": "unknown"}
+        
+        try:
+            with open(filepath) as f:
+                content = f.read()
+            return parser.parse(filepath, content)
+        except:
+            return {"language": "unknown", "error": "Failed to parse"}
+
+
+# CLI
+def main():
+    import argparse
+    import json
+    
+    parser = argparse.ArgumentParser(description="Parse source files")
+    parser.add_argument("file", help="File to parse")
+    parser.add_argument("-j", "--json", action="store_true")
+    
+    args = parser.parse_args()
+    
+    manager = ParserManager()
+    result = manager.parse(args.file)
+    
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        print(f"Language: {result.get('language', 'unknown')}")
+        if result.get('functions'):
+            print(f"Functions: {', '.join(result['functions'][:10])}")
+        if result.get('classes'):
+            print(f"Classes: {', '.join(result['classes'][:10])}")
+
+
+if __name__ == "__main__":
+    main()
