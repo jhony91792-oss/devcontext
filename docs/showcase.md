@@ -1,113 +1,101 @@
-# DevContext Showcases
+# Showcase
 
-Real-world examples of DevContext usage and results.
+Real-world examples of DevContext in action.
 
-## Example 1: Django REST API
+## Quick Examples
 
-### Project Structure
-```
-my_api/
-├── manage.py
-├── requirements.txt
-├── README.md
-├── my_api/
-│   ├── __init__.py
-│   ├── settings.py
-│   ├── urls.py
-│   ├── wsgi.py
-│   └── asgi.py
-├── apps/
-│   ├── users/
-│   │   ├── __init__.py
-│   │   ├── models.py
-│   │   ├── views.py
-│   │   ├── serializers.py
-│   │   └── urls.py
-│   └── products/
-│       ├── __init__.py
-│       ├── models.py
-│       ├── views.py
-│       └── serializers.py
-└── tests/
-    ├── test_users.py
-    └── test_products.py
+### Generate Context for Any Project
+
+```bash
+$ devcontext generate . -f compact
 ```
 
-### DevContext Output
+**Output:**
 ```json
 {
-  "tool": "DevContext",
   "version": "0.1.0",
-  "summary": {
-    "total_files": 15,
-    "by_language": {"python": 12, "text": 3}
-  },
+  "files": 47,
+  "languages": ["python", "javascript"],
   "structure": {
-    "apps/users/models.py": {
-      "classes": ["User", "UserProfile"],
-      "functions": ["create_user"]
-    },
-    "apps/users/views.py": {
-      "functions": ["user_list", "user_detail", "user_create"]
-    }
+    "src/main.py": {"functions": ["main", "init"], "classes": ["App"]},
+    "src/utils.py": {"functions": ["helper", "format"]},
+    ...
   }
 }
 ```
 
-## Example 2: React + TypeScript App
+### Use with ChatGPT
 
-### DevContext Output
-```json
-{
-  "tool": "DevContext",
-  "version": "0.1.0",
-  "summary": {
-    "total_files": 42,
-    "by_language": {"typescript": 28, "javascript": 8, "css": 6}
-  },
-  "structure": {
-    "src/App.tsx": {
-      "functions": ["App"],
-      "classes": []
-    },
-    "src/components/Button.tsx": {
-      "functions": ["Button"],
-      "classes": []
-    }
-  }
-}
+```bash
+# Copy context
+devcontext generate . -f compact | pbcopy
+
+# Paste to ChatGPT with:
+# "Help me debug this error in my project"
 ```
 
-## Example 3: Go Microservice
+### CI/CD Integration
 
-### DevContext Output
-```json
-{
-  "tool": "DevContext",
-  "version": "0.1.0",
-  "summary": {
-    "total_files": 8,
-    "by_language": {"go": 7, "yaml": 1}
-  },
-  "structure": {
-    "main.go": {
-      "functions": ["main", "handleRequest"],
-      "structs": ["Config", "Handler"]
-    },
-    "handlers.go": {
-      "functions": ["GetUsers", "CreateUser", "DeleteUser"]
-    }
-  }
-}
+```yaml
+# .github/workflows/context.yml
+- name: Generate Context
+  run: |
+    pip install devcontext
+    devcontext generate . -o context.json
 ```
 
-## Success Stories
+---
 
-*Coming soon — share your story!*
+## Supported Languages
 
-If DevContext helped you, please share:
-- How you use it
-- Time saved
-- Any feedback
+### Python Project
+```
+src/
+├── main.py          # main(), init_app()
+├── utils.py         # helper(), format_date()
+├── models/
+│   ├── __init__.py  # User, Post
+│   └── user.py      # User class
+```
 
-Open an issue or PR to add your story here.
+### JavaScript/TypeScript
+```
+src/
+├── index.ts         # main, App
+├── components/      # React components
+└── utils/           # helper functions
+```
+
+---
+
+## Before vs After
+
+### Before DevContext
+- Manually explain project: 10-15 min
+- Inconsistent context
+- Important details missed
+
+### After DevContext
+- One command: 3 seconds
+- Complete context
+- Never miss anything
+
+---
+
+## User Stories
+
+### Developer Daily Workflow
+1. `devcontext generate . -f compact | pbcopy`
+2. Open ChatGPT/Claude
+3. Paste context + question
+4. Get instant relevant help
+
+### Code Review
+1. Generate context before PR
+2. Share with team for review
+3. Better feedback, faster turnaround
+
+### Onboarding
+1. `devcontext generate . -f md > OVERVIEW.md`
+2. Share with new team member
+3. Faster understanding of codebase
