@@ -1,187 +1,130 @@
 # Examples
 
-This document shows real-world use cases for DevContext.
+Practical examples of DevContext usage.
 
-## 1. AI Pair Programming with Claude
+## Quick Examples
 
-**Scenario:** You're debugging a complex authentication bug in your Django app.
-
-**Before DevContext:**
-You spend 5-10 minutes explaining your project structure, models, auth flow...
-
-**With DevContext:**
-```bash
-devcontext generate . -f compact | pbcopy
-# Paste into Claude
-```
-
-Claude now knows your exact project structure, functions, and relationships instantly.
-
----
-
-## 2. Code Review Automation
-
-**Scenario:** Submit a PR and want AI to review it.
+### Basic Usage
 
 ```bash
-# Generate context
+# Generate context for current directory
+devcontext generate .
+
+# Output to file
 devcontext generate . -o context.json
 
-# Pass to your AI review tool
-cat context.json | your-ai-review-tool
+# Compact format for AI prompts
+devcontext generate . -f compact
 ```
 
----
+### With AI Assistants
 
-## 3. New Developer Onboarding
-
-**Scenario:** New team member needs to understand the codebase.
-
+**ChatGPT:**
 ```bash
-# Generate comprehensive overview
-devcontext generate /path/to/project -f md > overview.md
-
-# Share the overview.md with the new developer
+devcontext generate . -f compact | pbcopy
+# Paste to ChatGPT with your question
 ```
 
----
+**Claude:**
+```bash
+devcontext generate . -f compact | pbcopy
+# Paste to Claude with your question
+```
 
-## 4. GitHub Actions CI/CD
+**GitHub Copilot:**
+```bash
+devcontext generate . -o copilot-context.json
+```
 
-**.github/workflows/ai-review.yml**
+## Advanced Usage
+
+### Limited Depth
+```bash
+# Only scan top 3 levels
+devcontext generate . --max-depth 3
+```
+
+### Specific Directory
+```bash
+# Only scan src directory
+devcontext generate ./src
+
+# Only scan lib directory  
+devcontext generate ./lib -f md
+```
+
+### With Analysis
+```bash
+# Enable code analysis
+devcontext generate . -a -o analysis.json
+```
+
+### Watch Mode
+```bash
+# Auto-regenerate on file changes
+devcontext watch . -i 10
+```
+
+## CI/CD Examples
+
+### GitHub Actions
 ```yaml
-name: AI Code Review
-on: [pull_request]
+name: Generate Context
+on: [push, pull_request]
 
 jobs:
-  review:
+  context:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+      - name: Install DevContext
+        run: pip install devcontext
       - name: Generate Context
-        run: |
-          pip install devcontext
-          devcontext generate . -o context.json
-          
-      - name: AI Review
-        run: |
-          # Your AI review integration
-          echo "Review context:"
-          cat context.json
+        run: devcontext generate . -o context.json
+      - name: Upload Context
+        uses: actions/upload-artifact@v4
+        with:
+          name: context
+          path: context.json
 ```
 
----
-
-## 5. Documentation Generation
-
-**Scenario:** Generate structure docs for your README.
-
-```bash
-devcontext generate . -f md > STRUCTURE.md
-# Then embed parts into your README
+### GitLab CI
+```yaml
+generate-context:
+  stage: analyze
+  script:
+    - pip install devcontext
+    - devcontext generate . -o context.json
+  artifacts:
+    paths:
+      - context.json
 ```
 
----
+## Integration Examples
 
-## 6. Multiple Project Context
-
-**Scenario:** Working across multiple microservices.
-
-```bash
-# Generate context for each service
-devcontext generate ./auth-service -o auth-context.json
-devcontext generate ./user-service -o user-context.json
-devcontext generate ./payment-service -o payment-context.json
-
-# Combine for full system view
-cat auth-context.json user-context.json payment-context.json > full-system.json
-```
-
----
-
-## 7. Debugging Session
-
-**Scenario:** Paste context into AI when asking debugging help.
-
-```bash
-# Terminal
-devcontext generate . --format compact
-
-# Copy output, paste to AI:
-# "Help me debug this error: [error message]
-# Here's my codebase context: [paste]"
-```
-
----
-
-## 8. API Usage (Programmatic)
-
+### Python Script
 ```python
-import json
-from devcontext.tree import scan_directory
-from devcontext.parser import parse_file
-from devcontext.output import format_json
+from devcontext import DevContextClient
 
-# Scan codebase
-files = scan_directory('./myproject')
-parsed = [parse_file(f) for f in files if f.is_file()]
+client = DevContextClient()
+context = client.generate(".", format="json")
 
-# Generate AI-ready output
-context = {
-    'tool': 'DevContext',
-    'version': '0.1.0',
-    'files': parsed
-}
-
-print(format_json(context))
+# Use context...
+print(f"Found {len(context['files'])} files")
 ```
 
----
+### Shell Alias
+```bash
+# Add to ~/.bashrc
+alias dc='devcontext generate . -f compact'
 
-## 9. VS Code Task
-
-**tasks.json:**
-```json
-{
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "Generate AI Context",
-            "type": "shell",
-            "command": "devcontext generate . -o .devcontext.json",
-            "problemMatcher": []
-        }
-    ]
-}
+# Use
+dc | pbcopy
 ```
 
----
-
-## 10. Docker Integration
-
-**Dockerfile:**
-```dockerfile
-FROM python:3.11-slim
-
-RUN pip install devcontext
-
-# Generate context during build
-COPY . /app
-RUN devcontext generate /app -o /app/context.json
-
-CMD ["bash"]
+### Pre-commit Hook
+```bash
+#!/bin/bash
+# .git/hooks/pre-commit
+devcontext generate . -o .devcontext.json
 ```
-
----
-
-## Tips
-
-1. **Use `--format compact`** for AI prompts (shorter, cleaner)
-2. **Use `-f md`** for human-readable documentation
-3. **Add to `.gitignore`**: `*.devcontext.json` (generated files)
-4. **Combine with clipboard**: `devcontext generate . | pbcopy` (macOS) or `xclip` (Linux)
-
----
-
-*Submit more examples via PR!*
