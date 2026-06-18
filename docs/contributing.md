@@ -2,104 +2,89 @@
 
 Thank you for your interest in contributing to DevContext!
 
-## Quick Start
+## How to Contribute
 
-```bash
-# Fork and clone the repo
-git clone https://github.com/YOUR_USERNAME/devcontext.git
-cd devcontext
+### Reporting Issues
 
-# Create a virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+Found a bug? Have a feature request? Open an issue at:
+https://github.com/jhony91792-oss/devcontext/issues
 
-# Install in development mode
-pip install -e ".[dev]"
+Please include:
+- DevContext version
+- Python version
+- Steps to reproduce
+- Expected vs actual behavior
 
-# Run tests
-python3 test_runner.py
-```
+### Pull Requests
 
-## Development Workflow
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Make your changes
+4. Run tests: `pytest`
+5. Commit your changes: `git commit -m "feat: add my feature"`
+6. Push to your branch: `git push origin feature/my-feature`
+7. Open a Pull Request
 
-1. **Fork** the repository on GitHub
-2. **Clone** your fork locally
-3. **Create a branch** for your changes:
-   ```bash
-   git checkout -b feature/your-feature-name
-   # or
-   git checkout -b fix/your-bug-fix
-   ```
-
-4. **Make your changes** and commit with clear messages
-5. **Add tests** for any new functionality
-6. **Ensure tests pass**: `python3 test_runner.py`
-7. **Push** to your fork
-8. **Open a Pull Request** on GitHub
-
-## Code Style
+### Code Style
 
 - Follow PEP 8
-- Use meaningful variable names
-- Comment complex logic
-- Keep functions small and focused
-- Type hints encouraged but not required
+- Use type hints where possible
+- Write docstrings for public functions
+- Add tests for new features
 
-## Testing
+### Development Setup
 
-Write tests for all new functionality:
+```bash
+# Clone
+git clone https://github.com/jhony91792-oss/devcontext.git
+cd devcontext
 
-```python
-def test_new_feature():
-    """Description of expected behavior."""
-    # Arrange
-    # Act
-    # Assert
+# Create venv
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+
+# Install
+pip install -e .
+
+# Run tests
+pytest
 ```
 
-Run tests with:
+### Testing
+
 ```bash
-python3 test_runner.py
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=src/devcontext
+
+# Run specific test
+pytest tests/test_devcontext.py -v
+```
+
+## Project Structure
+
+```
+devcontext/
+├── src/devcontext/     # Source code
+│   ├── __init__.py     # Package init
+│   ├── cli.py          # CLI interface
+│   └── ...
+├── tests/              # Test files
+├── docs/               # Documentation
+└── .github/
+    └── workflows/      # CI/CD
 ```
 
 ## Commit Messages
 
-Use clear, descriptive commit messages:
-- `feat: add new language support`
-- `fix: correct parser error for Go files`
-- `docs: update README with examples`
-- `test: add tests for analyzer module`
-
-## Pull Request Process
-
-1. Update documentation if needed
-2. Add tests for any new code
-3. Ensure all tests pass
-4. Update CHANGELOG.md if relevant
-5. Request review from maintainers
-
-## Types of Contributions
-
-### Bug Reports
-- Search existing issues first
-- Include Python version, OS, and error message
-- Provide minimal reproduction case
-
-### Feature Requests
-- Describe the problem you're solving
-- Suggest a solution
-- Be open to feedback
-
-### Code
-- Follow existing code style
-- Add tests
-- Update documentation
-
-## Resources
-
-- [GitHub Docs](https://docs.github.com/)
-- [Python Packaging Guide](https://packaging.python.org/)
-- [GitHub Actions Tutorial](https://docs.github.com/en/actions/learning-github-actions)
+Follow conventional commits:
+- `feat:` New feature
+- `fix:` Bug fix
+- `docs:` Documentation
+- `test:` Tests
+- `refactor:` Refactoring
 
 ## License
 
