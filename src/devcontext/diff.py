@@ -1,109 +1,79 @@
-# Diff module for comparing contexts
+# Diff module for DevContext - context comparison
 
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 
-def compare_contexts(context1: Dict[str, Any], context2: Dict[str, Any]) -> Dict[str, Any]:
-    """Compare two contexts and return differences."""
-    files1 = set(context1.get("files", {}).keys())
-    files2 = set(context2.get("files", {}).keys())
+class ContextDiff:
+    """Compare two DevContext contexts."""
     
-    added = files2 - files1
-    removed = files1 - files2
-    common = files1 & files2
+    def __init__(self, old: Dict[str, Any], new: Dict[str, Any]):
+        self.old = old
+        self.new = new
     
-    # Compare common files
-    modified = []
-    for path in common:
-        info1 = context1["files"][path]
-        info2 = context2["files"][path]
+    def get_added_files(self) -> List[str]:
+        """Get files that were added."""
+        old_files = set(self.old.get("files", {}).keys())
+        new_files = set(self.new.get("files", {}).keys())
+        return sorted(list(new_files - old_files))
+    
+    def get_removed_files(self) -> List[str]:
+        """Get files that were removed."""
+        old_files = set(self.old.get("files", {}).keys())
+        new_files = set(self.new.get("files", {}).keys())
+        return sorted(list(old_files - new_files))
+    
+    def get_changed_files(self) -> List[str]:
+        """Get files that were modified."""
+        common = set(self.old.get("files", {}).keys()) & set(self.new.get("files", {}).keys())
+        changed = []
         
-        if info1 != info2:
-            modified.append(path)
+        for f in common:
+            old_info = self.old["files"][f]
+            new_info = self.new["files"][f]
+            if old_info != new_info:
+                changed.append(f)
+        
+        return sorted(changed)
     
-    return {
-        "added": list(added),
-        "removed": list(removed),
-        "modified": modified,
-        "stats": {
-            "added_count": len(added),
-            "removed_count": len(removed),
-            "modified_count": len(modified),
-            "total_changes": len(added) + len(removed) + len(modified)
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "added": self.get_added_files(),
+            "removed": self.get_removed_files(),
+            "changed": self.get_changed_files(),
+            "summary": {
+                "added_count": len(self.get_added_files()),
+                "removed_count": len(self.get_removed_files()),
+                "changed_count": len(self.get_changed_files()),
+            }
         }
-    }
 
 
-def generate_diff_report(context1: Dict[str, Any], context2: Dict[str, Any]) -> str:
-    """Generate a human-readable diff report."""
-    diff = compare_contexts(context1, context2)
-    
-    lines = [
-        "=" * 60,
-        "CONTEXT DIFF REPORT",
-        "=" * 60,
-        "",
-        f"Added:     {diff['stats']['added_count']}",
-        f"Removed:   {diff['stats']['removed_count']}",
-        f"Modified:  {diff['stats']['modified_count']}",
-        "",
-    ]
-    
-    if diff["added"]:
-        lines.append("Added files:")
-        for path in diff["added"][:10]:
-            lines.append(f"  + {path}")
-        if len(diff["added"]) > 10:
-            lines.append(f"  ... and {len(diff['added']) - 10} more")
-        lines.append("")
-    
-    if diff["removed"]:
-        lines.append("Removed files:")
-        for path in diff["removed"][:10]:
-            lines.append(f"  - {path}")
-        if len(diff["removed"]) > 10:
-            lines.append(f"  ... and {len(diff['removed']) - 10} more")
-        lines.append("")
-    
-    if diff["modified"]:
-        lines.append("Modified files:")
-        for path in diff["modified"][:10]:
-            lines.append(f"  M {path}")
-        if len(diff["modified"]) > 10:
-            lines.append(f"  ... and {len(diff['modified']) - 10} more")
-    
-    return "\n".join(lines)
+def compare_contexts(old: Dict[str, Any], new: Dict[str, Any]) -> Dict[str, Any]:
+    """Compare two contexts."""
+    diff = ContextDiff(old, new)
+    return diff.to_dict()
 
 
 # CLI
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Compare context files")
-    parser.add_argument("file1", help="First context file")
-    parser.add_argument("file2", help="Second context file")
-    parser.add_argument("-o", "--output", help="Output file")
-    parser.add_argument("-j", "--json", action="store_true", help="JSON output")
+    import sys
+    
+    parser = argparse.ArgumentParser(description="Compare DevContext contexts")
+    parser.add_argument("old", help="Old context JSON file")
+    parser.add_argument("new", help="New context JSON file")
     
     args = parser.parse_args()
     
-    with open(args.file1) as f:
-        context1 = json.load(f)
+    with open(args.old) as f:
+        old = json.load(f)
+    with open(args.new) as f:
+        new = json.load(f)
     
-    with open(args.file2) as f:
-        context2 = json.load(f)
-    
-    if args.json:
-        output = json.dumps(compare_contexts(context1, context2), indent=2)
-    else:
-        output = generate_diff_report(context1, context2)
-    
-    if args.output:
-        with open(args.output, 'w') as f:
-            f.write(output)
-        print(f"Written to {args.output}")
-    else:
-        print(output)
+    diff = ContextDiff(old, new)
+    print(json.dumps(diff.to_dict(), indent=2))
 
 
 if __name__ == "__main__":
