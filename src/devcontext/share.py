@@ -1,202 +1,158 @@
-# Share module for DevContext - generates shareable content
+# Share module for DevContext - share context via various channels
 
 import json
+import smtplib
+import ssl
+from email.mime.text import MIMEText
 from typing import Dict, Any, List, Optional
-from pathlib import Path
+from urllib.request import Request, urlopen
 
 
-def generate_twitter_content(repo_url: str = "https://github.com/jhony91792-oss/devcontext") -> List[str]:
-    """Generate Twitter thread content."""
-    return [
-        f"🧵 1/{len(_TWITTER_THREAD)} DevContext: CLI который экономит 10-15 минут каждый день",
-        "Каждый раз когда вы объясняете AI-ассистенту свой код - вы теряете время.",
-        f"DevContext генерирует полный контекст проекта за 3 секунды. Бесплатно. Open source.",
-        "Поддерживает 20+ языков: Python, JS, TS, Go, Rust, Java, C++, Ruby и другие.",
-        "Установка: pip install devcontext",
-        f"GitHub: {repo_url}",
-        "#DevTools #OpenSource #AI #Python #CLI",
-    ]
+class ShareChannel:
+    """Base share channel."""
+    
+    def share(self, content: str, **kwargs) -> bool:
+        raise NotImplementedError
 
 
-def generate_hackernews_title() -> str:
-    """Generate HN-ready title."""
-    return "Show DevContext: CLI that generates AI-ready context from your codebase in 3 seconds"
+class EmailShare(ShareChannel):
+    """Share via email."""
+    
+    def __init__(self, smtp_server: str, smtp_port: int, username: str, password: str):
+        self.smtp_server = smtp_server
+        self.smtp_port = smtp_port
+        self.username = username
+        self.password = password
+    
+    def share(self, content: str, to: str, subject: str = "DevContext Share", **kwargs) -> bool:
+        """Share via email."""
+        try:
+            msg = MIMEText(content, 'plain', 'utf-8')
+            msg['Subject'] = subject
+            msg['From'] = self.username
+            msg['To'] = to
+            
+            context = ssl.create_default_context()
+            
+            with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port, context=context) as server:
+                server.login(self.username, self.password)
+                server.send_message(msg)
+            
+            return True
+        except Exception as e:
+            print(f"Email share failed: {e}")
+            return False
 
 
-def generate_hackernews_body() -> str:
-    """Generate HN post content."""
-    return """**DevContext** is a CLI tool that I built to solve a problem I faced every day.
-
-**The Problem:**
-Before every AI coding session, I spent 10-15 minutes explaining my codebase structure, key files, and dependencies. This was repetitive and time-consuming.
-
-**The Solution:**
-DevContext generates a complete, AI-ready context from any codebase in 3 seconds.
-
-**Features:**
-- 20+ programming languages supported
-- Zero configuration required
-- Works offline, no API keys needed
-- Outputs JSON, Markdown, or compact format
-- MIT licensed, 100% open source
-
-**Quick Demo:**
-```bash
-pip install devcontext
-devcontext generate . -f compact
-```
-
-Then paste the output to ChatGPT/Claude and get instant relevant help.
-
-**Links:**
-- Repo: https://github.com/jhony91792-oss/devcontext
-- Docs: https://jhony91792-oss.github.io/devcontext/
-
-Would love your feedback! Ask me anything about the project."""
+class WebhookShare(ShareChannel):
+    """Share via webhook."""
+    
+    def __init__(self, webhook_url: str):
+        self.webhook_url = webhook_url
+    
+    def share(self, content: str, **kwargs) -> bool:
+        """Share via webhook."""
+        try:
+            payload = json.dumps({"content": content}).encode()
+            
+            req = Request(
+                self.webhook_url,
+                data=payload,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            with urlopen(req, timeout=10) as r:
+                return r.status == 200
+        except Exception as e:
+            print(f"Webhook share failed: {e}")
+            return False
 
 
-def generate_devto_article() -> Dict[str, str]:
-    """Generate Dev.to article content."""
-    return {
-        "title": "I Built a CLI That Saves Me 10-15 Minutes Every Day",
-        "body": """# I Built a CLI That Saves Me 10-15 Minutes Every Day
-
-Every developer knows this frustration: you want to use AI to help with your code, but first you have to spend 10-15 minutes explaining your entire codebase.
-
-## The Problem
-
-When you start a new AI coding session, you need to provide context:
-- Project structure
-- Key files and their purposes
-- Dependencies
-- Important functions and classes
-
-This is repetitive. It's tedious. It's a waste of time.
-
-## The Solution: DevContext
-
-I built a CLI tool that generates complete AI-ready context from any codebase in 3 seconds.
-
-```bash
-pip install devcontext
-devcontext generate .
-```
-
-That's it. No configuration. No API keys. Works offline.
-
-## Supported Languages
-
-Python, JavaScript, TypeScript, Go, Rust, Java, C, C++, Ruby, PHP, Swift, Kotlin, Scala, and more.
-
-## Output Formats
-
-- **JSON**: For programmatic use
-- **Markdown**: For human reading  
-- **Compact**: Optimized for AI prompts (50% smaller)
-
-## Real-World Use Cases
-
-### Daily Standup
-```bash
-devcontext generate ./recent-changes -o standup.json
-```
-
-### Code Review
-```bash
-devcontext generate . -f compact | pbcopy
-# Paste to ChatGPT with your PR link
-```
-
-### Debugging
-```bash
-devcontext generate . -f compact
-# Paste to Claude with error message
-```
-
-## Why It's Different
-
-| Feature | DevContext | Others |
-|---------|------------|--------|
-| Zero config | ✅ | ❌ |
-| No API keys | ✅ | ❌ |
-| Works offline | ✅ | ❌ |
-| Open source | ✅ | ❌ |
-| Free | ✅ | ❌ |
-
-## Try It Out
-
-```bash
-pip install devcontext
-devcontext generate . -f compact
-```
-
-Feedback welcome! Star the repo if it helps you too.
-
-**GitHub**: https://github.com/jhony91792-oss/devcontext""",
-        "tags": ["python", "cli", "opensource", "devtools", "productivity"],
-        "canonical_url": "https://github.com/jhony91792-oss/devcontext"
-    }
+class FileShare(ShareChannel):
+    """Share via file."""
+    
+    def share(self, content: str, path: str = "context.txt", **kwargs) -> bool:
+        """Save to file."""
+        try:
+            with open(path, 'w') as f:
+                f.write(content)
+            return True
+        except Exception as e:
+            print(f"File share failed: {e}")
+            return False
 
 
-def generate_social_share(repo_url: str = "https://github.com/jhony91792-oss/devcontext") -> Dict[str, str]:
-    """Generate all social content."""
-    return {
-        "twitter": "\n".join(generate_twitter_content(repo_url)),
-        "hackernews_title": generate_hackernews_title(),
-        "hackernews_body": generate_hackernews_body(),
-        "devto": generate_devto_article(),
-        "reddit": generate_reddit_post(),
-    }
+class ShareManager:
+    """Manage sharing channels."""
+    
+    def __init__(self):
+        self.channels: List[ShareChannel] = []
+    
+    def add_email(self, smtp_server: str, smtp_port: int, username: str, password: str) -> EmailShare:
+        """Add email channel."""
+        channel = EmailShare(smtp_server, smtp_port, username, password)
+        self.channels.append(channel)
+        return channel
+    
+    def add_webhook(self, webhook_url: str) -> WebhookShare:
+        """Add webhook channel."""
+        channel = WebhookShare(webhook_url)
+        self.channels.append(channel)
+        return channel
+    
+    def add_file(self, path: str) -> FileShare:
+        """Add file channel."""
+        channel = FileShare()
+        # Store path for later use
+        return channel
+    
+    def share(self, content: str, **kwargs) -> Dict[str, bool]:
+        """Share content via all channels."""
+        results = {}
+        
+        for i, channel in enumerate(self.channels):
+            name = type(channel).__name__
+            try:
+                if isinstance(channel, FileShare):
+                    results[name] = channel.share(content, path=kwargs.get("path", "context.txt"))
+                elif isinstance(channel, EmailShare):
+                    results[name] = channel.share(content, to=kwargs.get("to", ""))
+                else:
+                    results[name] = channel.share(content)
+            except Exception as e:
+                results[name] = False
+        
+        return results
 
 
-def generate_reddit_post() -> str:
-    """Generate Reddit post content."""
-    return """DevContext - CLI that generates AI-ready context from your codebase
-
-I built this to solve my daily frustration: spending 10-15 minutes explaining code structure to AI before getting any actual help.
-
-**What it does:**
-- Scans any codebase and extracts structure
-- Identifies functions, classes, imports
-- Generates context in 3 seconds
-
-**Install:**
-```
-pip install devcontext
-```
-
-**Demo:**
-```
-devcontext generate . -f compact
-```
-
-Supports 20+ languages, outputs JSON/Markdown/compact, MIT licensed.
-
-Repo: https://github.com/jhony91792-oss/devcontext
-
-Questions welcome!"""
-
-
-# Content stored for easy access
-_TWITTER_THREAD = [
-    "🧵 DevContext: CLI который экономит 10-15 минут каждый день",
-    "Каждый раз когда вы объясняете AI-ассистенту свой код - вы теряете время.",
-    f"DevContext генерирует полный контекст проекта за 3 секунды. Бесплатно. Open source.",
-    "Поддерживает 20+ языков: Python, JS, TS, Go, Rust, Java, C++, Ruby и другие.",
-    "Установка: pip install devcontext",
-    "GitHub: https://github.com/jhony91792-oss/devcontext",
-    "#DevTools #OpenSource #AI #Python #CLI",
-]
+# CLI
+def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Share DevContext output")
+    parser.add_argument("content", help="Content to share")
+    parser.add_argument("-t", "--to", help="Email recipient")
+    parser.add_argument("-s", "--subject", default="DevContext Share", help="Email subject")
+    parser.add_argument("-o", "--output", help="Output file")
+    
+    args = parser.parse_args()
+    
+    share = ShareManager()
+    
+    if args.output:
+        channel = FileShare()
+        if channel.share(args.content, args.output):
+            print(f"✅ Saved to {args.output}")
+        else:
+            print(f"❌ Failed to save")
+    
+    if args.to:
+        # Use Gmail
+        channel = EmailShare("smtp.gmail.com", 465, "jhony91792@gmail.com", "veum tkuk almg rolx")
+        if channel.share(args.content, args.to, args.subject):
+            print(f"✅ Sent to {args.to}")
+        else:
+            print(f"❌ Failed to send")
 
 
-def get_all_content() -> Dict[str, Any]:
-    """Get all shareable content."""
-    return {
-        "twitter_thread": _TWITTER_THREAD,
-        "hackernews": {
-            "title": generate_hackernews_title(),
-            "body": generate_hackernews_body(),
-        },
-        "devto_article": generate_devto_article(),
-        "reddit_post": generate_reddit_post(),
-    }
+if __name__ == "__main__":
+    main()
