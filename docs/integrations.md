@@ -1,12 +1,9 @@
-# DevContext Integrations
+# Integrations
 
-## Overview
-
-DevContext integrates with popular tools and platforms.
+Connect DevContext with your tools.
 
 ## GitHub Actions
 
-### Auto-generate context on push
 ```yaml
 name: Generate Context
 on: [push, pull_request]
@@ -23,104 +20,99 @@ jobs:
       - name: Upload Context
         uses: actions/upload-artifact@v4
         with:
-          name: codebase-context
+          name: context
           path: context.json
 ```
 
-## VS Code
+## GitLab CI
 
-### tasks.json
-```json
-{
-    "version": "2.0.0",
-    "tasks": [
-        {
-            "label": "Generate AI Context",
-            "type": "shell",
-            "command": "devcontext generate . -o .devcontext.json",
-            "problemMatcher": []
-        }
-    ]
-}
-```
-
-### Recommended Extensions
-- GitHub Copilot
-- GitHub Actions
-- Python
-
-## JetBrains IDEs
-
-Coming soon — see [Roadmap](ROADMAP.md).
-
-## Slack
-
-Use with Slackbot:
-```
-/devcontext generate ./project -o context.json
-```
-
-## Docker
-
-```dockerfile
-FROM python:3.11-slim
-RUN pip install devcontext
-COPY . /app
-WORKDIR /app
-CMD ["devcontext", "generate", "."]
-```
-
-Run:
-```bash
-docker run --rm -v $(pwd):/app devcontext generate /app
-```
-
-## Git Hooks
-
-### Pre-commit
-```bash
-#!/bin/bash
-# .git/hooks/pre-commit
-devcontext generate . -o .devcontext.json
-```
-
-### Pre-push
-```bash
-#!/bin/bash
-# .git/hooks/pre-push
-devcontext generate . -o .pre-push-context.json
-```
-
-## CI/CD Pipelines
-
-### GitLab CI
 ```yaml
 generate-context:
-  image: python:3.11
-  before_script:
-    - pip install devcontext
+  stage: analyze
   script:
+    - pip install devcontext
     - devcontext generate . -o context.json
   artifacts:
     paths:
       - context.json
 ```
 
+## VS Code
+
+Add to `.vscode/tasks.json`:
+```json
+{
+    "version": "2.0.0",
+    "tasks": [{
+        "label": "Generate DevContext",
+        "command": "devcontext",
+        "args": ["generate", "."],
+        "problemMatcher": []
+    }]
+}
+```
+
+## JetBrains IDEs
+
+1. Settings → Tools → External Tools
+2. Add new tool:
+   - Name: DevContext
+   - Program: devcontext
+   - Arguments: generate $ProjectFileDir$
+
+## Slack Integration
+
+```bash
+# In Slack webhook configuration
+devcontext generate . -f compact | curl -X POST -H 'Content-type: application/json' \
+  --data '{"text": "'"$(cat)"'"}' $SLACK_WEBHOOK_URL
+```
+
+## Discord Integration
+
+```bash
+devcontext generate . | python3 -c "
+import sys, json
+import requests
+data = {'content': sys.stdin.read()}
+requests.post(DISCORD_WEBHOOK, json=data)
+"
+```
+
+## Text Editors
+
+### Vim/Neovim
+```vim
+" Generate and copy context
+command! DevContext silent! execute '!devcontext generate . -f compact | xclip -selection clipboard'
+```
+
+### Emacs
+```elisp
+(defun devcontext-generate ()
+  (interactive)
+  (shell-command "devcontext generate . -f compact | xclip -selection clipboard"))
+```
+
+## CI/CD Systems
+
 ### Jenkins
 ```groovy
 pipeline {
-    agent any
-    stages {
-        stage('Generate Context') {
-            steps {
-                sh 'pip install devcontext'
-                sh 'devcontext generate . -o context.json'
-            }
+    stage('Context') {
+        steps {
+            sh 'pip install devcontext'
+            sh 'devcontext generate . -o context.json'
         }
     }
 }
 ```
 
-## Desktop Apps
-
-Coming soon — see [Roadmap](ROADMAP.md).
+### CircleCI
+```yaml
+- run:
+    name: Generate Context
+    command: |
+      pip install devcontext
+      devcontext generate . -o context.json
+```
