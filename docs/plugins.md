@@ -1,105 +1,81 @@
-# Plugin Development Guide
+# Plugin System
+
+Extend DevContext with custom plugins.
 
 ## Overview
 
-DevContext supports a plugin system that allows you to extend its functionality.
+DevContext supports plugins that can:
+- Modify context after generation
+- Transform output formats
+- Add custom analysis to files
 
-## Plugin Architecture
+## Installation
 
-Plugins can hook into two points:
-1. `on_context_generated` - Called after context is generated
-2. `on_file_scanned` - Called for each file scanned
+Plugins are stored in `~/.config/devcontext/plugins/`.
 
-## Creating a Plugin
+```bash
+mkdir -p ~/.config/devcontext/plugins
+```
+
+## Writing a Plugin
+
+Create a Python file in the plugins directory:
 
 ```python
-from devcontext.api_client import DevContextPlugin
+from devcontext.plugins import Plugin
 
-class MyPlugin(DevContextPlugin):
+class MyPlugin(Plugin):
     name = "my-plugin"
-    version = "1.0.0"
+    version = "0.1.0"
     
-    def on_context_generated(self, context):
-        # Modify or enhance context
-        context["my_custom_field"] = "added by plugin"
-        return context
-    
-    def on_file_scanned(self, file_info):
-        # Modify file info
-        return file_info
-```
-
-## Registering Plugins
-
-```python
-from devcontext.api_client import get_plugin_manager
-
-manager = get_plugin_manager()
-manager.register(MyPlugin())
-```
-
-## Example Plugins
-
-### Security Scanner Plugin
-```python
-class SecurityScannerPlugin(DevContextPlugin):
-    """Scan for security issues in code."""
-    name = "security-scanner"
-    
-    def on_context_generated(self, context):
-        issues = []
-        files = context.get("files", {})
-        
-        for path, info in files.items():
-            content = info.get("content", "")
-            if "password =" in content or "api_key" in path:
-                issues.append(f"Potential secret in {path}")
-        
-        context["security_issues"] = issues
+    def on_generate(self, context):
+        # Modify context here
+        context["custom_field"] = "value"
         return context
 ```
 
-### Complexity Analyzer Plugin
+## Available Hooks
+
+### on_generate(context)
+
+Called after context is generated.
+
 ```python
-class ComplexityPlugin(DevContextPlugin):
-    """Calculate complexity metrics."""
-    name = "complexity-analyzer"
-    
-    def on_file_scanned(self, file_info):
-        content = file_info.get("content", "")
-        lines = content.split("\n")
-        
-        # Simple cyclomatic complexity approximation
-        complexity = sum(1 for line in lines if any(kw in line for kw in ["if", "for", "while", "and", "or"]))
-        
-        file_info["complexity"] = complexity
-        return file_info
+def on_generate(self, context):
+    context["total_functions"] = sum(
+        len(f.get("functions", [])) for f in context["files"].values()
+    )
+    return context
 ```
 
-## Plugin Manager CLI
+### on_format(output, format_type)
 
-Coming soon - will support:
-- `devcontext plugin list`
-- `devcontext plugin enable <name>`
-- `devcontext plugin disable <name>`
+Called during output formatting.
 
-## Publishing Plugins
+```python
+def on_format(self, output, format_type):
+    if format_type == "markdown":
+        output = output.replace("#", "##")
+    return output
+```
 
-1. Create a separate repository
-2. Follow naming convention: `devcontext-plugin-<name>`
-3. Document installation process
-4. Submit to [awesome-devcontext](https://github.com/jhony91792-oss/awesome-devcontext) list
+### on_file_analyze(filepath, info)
 
-## Best Practices
+Called for each file analyzed.
 
-- Keep plugins focused and small
-- Document configuration options
-- Handle errors gracefully
-- Support both JSON and MD output formats
-- Test with large codebases
+```python
+def on_file_analyze(self, filepath, info):
+    if filepath.endswith(".py"):
+        info["python_version"] = "3.x"
+    return info
+```
 
-## Limitations
+## Loading Plugins
 
-- Plugins run in the same process as DevContext
-- No network access from plugins
-- Plugins cannot add new CLI commands (yet)
+```bash
+devcontext plugins list
+```
+
+## Removing Plugins
+
+Simply delete the plugin file from the plugins directory.
