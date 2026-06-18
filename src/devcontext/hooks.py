@@ -1,115 +1,121 @@
-# Git hooks integration for DevContext
+# Hooks module for DevContext - git integration hooks
 
 import os
-import sys
+import json
+import subprocess
 from pathlib import Path
-from typing import Optional
-
-GIT_HOOKS_DIR = ".git" + os.sep + "hooks"
-HOOK_TEMPLATE = """#!/bin/bash
-# DevContext hook - auto-generated
-# Run: devcontext generate . -o .devcontext.json
-devcontext generate . -o .devcontext.json
-"""
+from typing import Dict, Any, List, Optional
 
 
-def install_hook(hook_type: str = "pre-commit") -> bool:
-    """Install DevContext git hook."""
-    hook_path = Path(GIT_HOOKS_DIR) / hook_type
+class GitHooks:
+    """Git hooks integration."""
     
-    try:
-        hook_path.parent.mkdir(parents=True, exist_ok=True)
+    def __init__(self, repo_path: str = "."):
+        self.repo_path = Path(repo_path)
+        self.hooks_dir = self.repo_path / ".git" / "hooks"
+    
+    def is_git_repo(self) -> bool:
+        """Check if directory is a git repository."""
+        return (self.repo_path / ".git").exists()
+    
+    def install_hook(self, hook_name: str, script: str) -> bool:
+        """Install a git hook."""
+        if not self.is_git_repo():
+            return False
+        
+        self.hooks_dir.mkdir(parents=True, exist_ok=True)
+        hook_path = self.hooks_dir / hook_name
         
         with open(hook_path, 'w') as f:
-            f.write(HOOK_TEMPLATE)
+            f.write("#!/bin/bash\n")
+            f.write(script)
         
-        # Make executable
         os.chmod(hook_path, 0o755)
         return True
-    except OSError:
-        return False
-
-
-def uninstall_hook(hook_type: str = "pre-commit") -> bool:
-    """Remove DevContext git hook."""
-    hook_path = Path(GIT_HOOKS_DIR) / hook_type
     
-    try:
-        if hook_path.exists():
-            hook_path.unlink()
-        return True
-    except OSError:
-        return False
-
-
-def is_hook_installed(hook_type: str = "pre-commit") -> bool:
-    """Check if DevContext hook is installed."""
-    hook_path = Path(GIT_HOOKS_DIR) / hook_type
+    def install_pre_commit(self) -> bool:
+        """Install pre-commit hook."""
+        script = '''#!/bin/bash
+# DevContext pre-commit hook
+devcontext generate . -o .devcontext.json
+git add .devcontext.json
+'''
+        return self.install_hook("pre-commit", script)
     
-    if not hook_path.exists():
-        return False
+    def install_post_commit(self) -> bool:
+        """Install post-commit hook."""
+        script = '''#!/bin/bash
+# DevContext post-commit hook
+if [ -f .devcontext.json ]; then
+    devcontext generate . -o .devcontext.json
+fi
+'''
+        return self.install_hook("post-commit", script)
     
-    try:
-        with open(hook_path) as f:
-            content = f.read()
-        return "devcontext generate" in content
-    except OSError:
-        return False
-
-
-def install_all_hooks() -> dict:
-    """Install hooks for common git events."""
-    hooks = ["pre-commit", "pre-push", "post-checkout", "post-merge"]
-    results = {}
-    
-    for hook in hooks:
-        results[hook] = install_hook(hook)
-    
-    return results
-
-
-def get_hook_status() -> dict:
-    """Get status of all hooks."""
-    hooks = ["pre-commit", "pre-push", "post-checkout", "post-merge"]
-    results = {}
-    
-    for hook in hooks:
-        results[hook] = {
-            "installed": is_hook_installed(hook),
-            "path": str(Path(GIT_HOOKS_DIR) / hook)
+    def install_all(self) -> Dict[str, bool]:
+        """Install all hooks."""
+        return {
+            "pre-commit": self.install_pre_commit(),
+            "post-commit": self.install_post_commit(),
         }
     
-    return results
+    def remove_hook(self, hook_name: str) -> bool:
+        """Remove a hook."""
+        hook_path = self.hooks_dir / hook_name
+        if hook_path.exists():
+            hook_path.unlink()
+            return True
+        return False
+    
+    def list_hooks(self) -> List[str]:
+        """List installed hooks."""
+        if not self.hooks_dir.exists():
+            return []
+        return [f.name for f in self.hooks_dir.iterdir() if f.is_file()]
 
 
-# CLI integration
+# CLI
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Manage DevContext git hooks")
-    sub = parser.add_subcommands()
+    parser = argparse.ArgumentParser(description="Git hooks for DevContext")
+    sub = parser.add_subparsers(dest="command")
     
-    install_parser = sub.add_parser("install", help="Install hook")
-    install_parser.add_argument("type", nargs="?", default="pre-commit", help="Hook type")
+    install_cmd = sub.add_parser("install", help="Install hooks")
+    install_cmd.add_argument("-t", "--type", choices=["pre-commit", "post-commit", "all"],
+                             default="all")
     
-    uninstall_parser = sub.add_parser("uninstall", help="Uninstall hook")
-    uninstall_parser.add_argument("type", nargs="?", default="pre-commit", help="Hook type")
+    remove_cmd = sub.add_parser("remove", help="Remove hook")
+    remove_cmd.add_argument("name")
     
-    status_parser = sub.add_parser("status", help="Show hook status")
+    list_cmd = sub.add_parser("list", help="List installed hooks")
     
     args = parser.parse_args()
     
-    if hasattr(args, 'type'):
-        if args.command == "install":
-            success = install_hook(args.type)
-            print(f"{'✅' if success else '❌'} {'Installed' if success else 'Failed'} {args.type} hook")
-        elif args.command == "uninstall":
-            success = uninstall_hook(args.type)
-            print(f"{'✅' if success else '❌'} {'Removed' if success else 'Failed'} {args.type} hook")
-    else:
-        status = get_hook_status()
-        for hook, info in status.items():
-            state = "✅ installed" if info["installed"] else "❌ not installed"
-            print(f"  {hook}: {state}")
+    hooks = GitHooks()
+    
+    if args.command == "install":
+        if args.type == "all":
+            results = hooks.install_all()
+            for name, success in results.items():
+                print(f"{'✅' if success else '❌'} {name}")
+        else:
+            if args.type == "pre-commit":
+                success = hooks.install_pre_commit()
+            else:
+                success = hooks.install_post_commit()
+            print(f"{'✅' if success else '❌'} {args.type}")
+    
+    elif args.command == "remove":
+        if hooks.remove_hook(args.name):
+            print(f"Removed {args.name}")
+        else:
+            print(f"Hook {args.name} not found")
+    
+    elif args.command == "list":
+        hook_list = hooks.list_hooks()
+        print(f"Installed hooks: {len(hook_list)}")
+        for h in hook_list:
+            print(f"  - {h}")
 
 
 if __name__ == "__main__":
