@@ -1,139 +1,110 @@
-# Diff functionality for DevContext
+# Diff module for comparing contexts
 
-import os
 import json
-from pathlib import Path
-from typing import Dict, List, Any, Optional
-from difflib import unified_diff, context_diff
+from typing import Dict, Any, List
 
 
-def compare_files(old: Dict[str, Any], new: Dict[str, Any]) -> Dict[str, Any]:
-    """Compare two file trees and return differences."""
-    old_files = set(old.get("files", {}).keys())
-    new_files = set(new.get("files", {}).keys())
+def compare_contexts(context1: Dict[str, Any], context2: Dict[str, Any]) -> Dict[str, Any]:
+    """Compare two contexts and return differences."""
+    files1 = set(context1.get("files", {}).keys())
+    files2 = set(context2.get("files", {}).keys())
     
-    added = new_files - old_files
-    removed = old_files - new_files
-    common = old_files & new_files
+    added = files2 - files1
+    removed = files1 - files2
+    common = files1 & files2
     
+    # Compare common files
     modified = []
-    for f in common:
-        if old["files"][f].get("hash") != new["files"][f].get("hash"):
-            modified.append(f)
+    for path in common:
+        info1 = context1["files"][path]
+        info2 = context2["files"][path]
+        
+        if info1 != info2:
+            modified.append(path)
     
     return {
-        "added": sorted(added),
-        "removed": sorted(removed),
-        "modified": sorted(modified),
+        "added": list(added),
+        "removed": list(removed),
+        "modified": modified,
         "stats": {
-            "added": len(added),
-            "removed": len(removed),
-            "modified": len(modified),
+            "added_count": len(added),
+            "removed_count": len(removed),
+            "modified_count": len(modified),
             "total_changes": len(added) + len(removed) + len(modified)
         }
     }
 
 
-def generate_diff(old_context: Dict, new_context: Dict, format: str = "unified") -> str:
-    """Generate human-readable diff between two contexts."""
-    diff_result = compare_files(old_context, new_context)
+def generate_diff_report(context1: Dict[str, Any], context2: Dict[str, Any]) -> str:
+    """Generate a human-readable diff report."""
+    diff = compare_contexts(context1, context2)
     
-    if format == "summary":
-        return format_summary(diff_result)
-    elif format == "json":
-        return json.dumps(diff_result, indent=2)
-    else:
-        return format_summary(diff_result)
-
-
-def format_summary(diff: Dict[str, Any]) -> str:
-    """Format diff as human-readable summary."""
-    lines = ["# DevContext Diff Summary", ""]
+    lines = [
+        "=" * 60,
+        "CONTEXT DIFF REPORT",
+        "=" * 60,
+        "",
+        f"Added:     {diff['stats']['added_count']}",
+        f"Removed:   {diff['stats']['removed_count']}",
+        f"Modified:  {diff['stats']['modified_count']}",
+        "",
+    ]
     
-    stats = diff.get("stats", {})
-    lines.append(f"**Total changes:** {stats.get('total_changes', 0)}")
-    lines.append("")
-    
-    if diff.get("added"):
-        lines.append(f"## ➕ Added ({len(diff['added'])})")
-        for f in diff["added"][:20]:
-            lines.append(f"  + {f}")
-        if len(diff["added"]) > 20:
-            lines.append(f"  ... and {len(diff['added']) - 20} more")
+    if diff["added"]:
+        lines.append("Added files:")
+        for path in diff["added"][:10]:
+            lines.append(f"  + {path}")
+        if len(diff["added"]) > 10:
+            lines.append(f"  ... and {len(diff['added']) - 10} more")
         lines.append("")
     
-    if diff.get("removed"):
-        lines.append(f"## ➖ Removed ({len(diff['removed'])})")
-        for f in diff["removed"][:20]:
-            lines.append(f"  - {f}")
-        if len(diff["removed"]) > 20:
-            lines.append(f"  ... and {len(diff['removed']) - 20} more")
+    if diff["removed"]:
+        lines.append("Removed files:")
+        for path in diff["removed"][:10]:
+            lines.append(f"  - {path}")
+        if len(diff["removed"]) > 10:
+            lines.append(f"  ... and {len(diff['removed']) - 10} more")
         lines.append("")
     
-    if diff.get("modified"):
-        lines.append(f"## ✏️ Modified ({len(diff['modified'])})")
-        for f in diff["modified"][:20]:
-            lines.append(f"  ~ {f}")
-        if len(diff["modified"]) > 20:
-            lines.append(f"  ... and {len(diff['modified']) - 20} more")
-        lines.append("")
+    if diff["modified"]:
+        lines.append("Modified files:")
+        for path in diff["modified"][:10]:
+            lines.append(f"  M {path}")
+        if len(diff["modified"]) > 10:
+            lines.append(f"  ... and {len(diff['modified']) - 10} more")
     
     return "\n".join(lines)
 
 
-def patch_context(original: Dict, diff_result: Dict) -> Dict:
-    """Apply diff to create patched context."""
-    patched = {
-        "version": original.get("version", "0.1.0"),
-        "generated": original.get("generated"),
-        "files": dict(original.get("files", {})),
-        "metadata": dict(original.get("metadata", {}))
-    }
-    
-    # Remove deleted files
-    for f in diff_result.get("removed", []):
-        if f in patched["files"]:
-            del patched["files"][f]
-    
-    # Note: Modified and added files need new content from new_context
-    # This is a placeholder - full implementation would need file content
-    
-    return patched
-
-
-# CLI integration
+# CLI
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Compare DevContext outputs")
-    parser.add_argument("old", help="Old context file (JSON)")
-    parser.add_argument("new", help="New context file (JSON)")
-    parser.add_argument("-f", "--format", choices=["summary", "json"], default="summary",
-                        help="Output format")
+    parser = argparse.ArgumentParser(description="Compare context files")
+    parser.add_argument("file1", help="First context file")
+    parser.add_argument("file2", help="Second context file")
+    parser.add_argument("-o", "--output", help="Output file")
+    parser.add_argument("-j", "--json", action="store_true", help="JSON output")
     
     args = parser.parse_args()
     
-    try:
-        with open(args.old) as f:
-            old = json.load(f)
-        with open(args.new) as f:
-            new = json.load(f)
-        
-        diff = compare_files(old, new)
-        
-        if args.format == "json":
-            print(json.dumps(diff, indent=2))
-        else:
-            print(format_summary(diff))
-            
-    except FileNotFoundError as e:
-        print(f"Error: File not found - {e}")
-        return 1
-    except json.JSONDecodeError as e:
-        print(f"Error: Invalid JSON - {e}")
-        return 1
+    with open(args.file1) as f:
+        context1 = json.load(f)
     
-    return 0
+    with open(args.file2) as f:
+        context2 = json.load(f)
+    
+    if args.json:
+        output = json.dumps(compare_contexts(context1, context2), indent=2)
+    else:
+        output = generate_diff_report(context1, context2)
+    
+    if args.output:
+        with open(args.output, 'w') as f:
+            f.write(output)
+        print(f"Written to {args.output}")
+    else:
+        print(output)
 
 
 if __name__ == "__main__":
-    exit(main())
+    main()
