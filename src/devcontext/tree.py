@@ -1,114 +1,118 @@
-"""File tree builder for DevContext."""
+# Tree module for DevContext - display project structure
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Dict, Any, List, Optional
 
 
-# Directories to skip during traversal
-SKIP_DIRS = {
-    '.git', '__pycache__', 'node_modules', '.venv', 'venv',
-    '.pytest_cache', '.mypy_cache', 'dist', 'build', '.tox',
-    '.idea', '.vscode', 'vendor', 'target', '.cache', '.npm',
-    '.parcel', '.next', '.nuxt', '.svelte-kit', '__snapshots__',
-    'coverage', '.nyc_output', 'tmp', 'temp', '.tmp'
-}
-
-# File extensions to include
-CODE_EXTS = {
-    '.py', '.js', '.mjs', '.cjs', '.ts', '.tsx', '.jsx',
-    '.go', '.rs', '.java', '.c', '.cpp', '.h', '.hpp', '.cs',
-    '.rb', '.php', '.swift', '.kt', '.scala', '.vue', '.svelte',
-    '.md', '.rst', '.yaml', '.yml', '.toml', '.json', '.txt',
-    '.sh', '.bash', '.zsh', '.fish', '.ps1', '.sql', '.graphql',
-    '.html', '.css', '.scss', '.sass', '.less',
-}
-
-# Files to skip (not by extension, by exact name)
-SKIP_FILES = {
-    'package-lock.json', 'yarn.lock', 'poetry.lock',
-    'Pipfile.lock', 'Gemfile.lock', 'composer.lock',
-    'pnpm-lock.yaml', '.gitignore', '.gitattributes',
-    'Thumbs.db', '.DS_Store', 'desktop.ini',
-}
-
-# Files that contain important metadata
-KEY_FILES = {
-    'README.md', 'README.rst', 'README.txt',
-    'pyproject.toml', 'setup.py', 'setup.cfg', 'Makefile',
-    'package.json', 'Cargo.toml', 'go.mod', 'go.sum',
-    'requirements.txt', 'requirements-dev.txt', 'Pipfile',
-    'Dockerfile', 'docker-compose.yml', 'docker-compose.yaml',
-    '.env.example', '.env.template',
-}
-
-
-class FileTree:
-    """Builds a tree representation of a codebase."""
+def get_tree_structure(path: str = ".", max_depth: int = 10, ignore_patterns: List[str] = None) -> str:
+    """Generate ASCII tree of project structure."""
     
-    def __init__(self, root: Path, max_depth: int = 5):
-        self.root = Path(root).resolve()
-        self.max_depth = max_depth
-        self.nodes = []
+    if ignore_patterns is None:
+        ignore_patterns = [".git", "node_modules", "__pycache__", ".pyc", ".venv", ".venv39"]
     
-    def scan(self) -> list[dict[str, Any]]:
-        """Scan the codebase and return a list of all relevant files."""
-        self._walk(self.root, 0)
-        return self.nodes
+    root_path = Path(path)
+    lines = [f"{root_path.name}/"]
     
-    def _walk(self, path: Path, depth: int):
-        """Recursively walk directory."""
-        if depth > self.max_depth:
+    def walk_directory(current_path: Path, prefix: str = "", depth: int = 0):
+        if depth >= max_depth:
             return
         
         try:
-            for item in sorted(path.iterdir()):
-                name = item.name
-                
-                # Skip hidden files/dirs except allowed ones
-                if name.startswith('.') and name not in {'.gitignore', '.env.example'}:
-                    continue
-                
-                # Skip known non-source directories
-                if item.is_dir():
-                    if name in SKIP_DIRS:
-                        continue
-                    self.nodes.append({
-                        'path': str(item.relative_to(self.root)),
-                        'type': 'dir',
-                        'depth': depth
-                    })
-                    self._walk(item, depth + 1)
-                else:
-                    if name in SKIP_FILES:
-                        continue
-                    
-                    ext = item.suffix.lower()
-                    if ext in CODE_EXTS or name in KEY_FILES or name.startswith('Dockerfile'):
-                        rel = str(item.relative_to(self.root))
-                        self.nodes.append({
-                            'path': rel,
-                            'type': 'file',
-                            'ext': ext or 'none',
-                            'size': item.stat().st_size,
-                            'depth': depth
-                        })
+            entries = sorted(current_path.iterdir(), key=lambda e: (not e.is_dir(), e.name))
         except PermissionError:
-            pass
-    
-    def get_tree_string(self) -> str:
-        """Return a nice tree representation."""
-        lines = []
-        for node in self.nodes:
-            indent = '  ' * node['depth']
-            if node['type'] == 'dir':
-                lines.append(f"{indent}📁 {node['path']}/")
+            return
+        
+        dirs = []
+        files = []
+        
+        for entry in entries:
+            name = entry.name
+            
+            # Check ignore patterns
+            if any(pattern in name for pattern in ignore_patterns):
+                continue
+            
+            if entry.is_dir():
+                dirs.append(entry)
             else:
-                lines.append(f"{indent}📄 {node['path']} ({node['size']} bytes)")
-        return '\n'.join(lines)
+                files.append(entry)
+        
+        # Process directories
+        for i, dir_entry in enumerate(dirs):
+            is_last_dir = (i == len(dirs) - 1) and len(files) == 0
+            connector = "└── " if is_last_dir else "├── "
+            
+            lines.append(f"{prefix}{connector}{dir_entry.name}/")
+            
+            extension = "    " if is_last_dir else "│   "
+            walk_directory(dir_entry, prefix + extension, depth + 1)
+        
+        # Process files
+        for i, file_entry in enumerate(files):
+            is_last = (i == len(files) - 1)
+            connector = "└── " if is_last else "├── "
+            lines.append(f"{prefix}{connector}{file_entry.name}")
+    
+    walk_directory(root_path)
+    return "\n".join(lines)
 
 
-def scan_directory(path: Path, max_depth: int = 5) -> list[dict[str, Any]]:
-    """Convenience function to scan a directory."""
-    tree = FileTree(path, max_depth)
-    return tree.scan()
+def get_tree_dict(path: str = ".", max_depth: int = 10, ignore_patterns: List[str] = None) -> Dict[str, Any]:
+    """Generate tree as nested dictionary."""
+    
+    if ignore_patterns is None:
+        ignore_patterns = [".git", "node_modules", "__pycache__", ".pyc", ".venv", ".venv39"]
+    
+    root_path = Path(path)
+    
+    def walk(current_path: Path, depth: int = 0) -> Dict[str, Any]:
+        if depth >= max_depth:
+            return {}
+        
+        node = {"_type": "dir", "_path": str(current_path), "children": {}}
+        
+        try:
+            entries = sorted(current_path.iterdir(), key=lambda e: (not e.is_dir(), e.name))
+        except PermissionError:
+            return node
+        
+        for entry in entries:
+            name = entry.name
+            
+            if any(pattern in name for pattern in ignore_patterns):
+                continue
+            
+            if entry.is_dir():
+                node["children"][name] = walk(entry, depth + 1)
+            else:
+                node["children"][name] = {"_type": "file", "_path": str(entry)}
+        
+        return node
+    
+    return {root_path.name: walk(root_path)}
+
+
+# CLI
+def main():
+    import argparse
+    import json
+    
+    parser = argparse.ArgumentParser(description="Display project tree")
+    parser.add_argument("path", nargs="?", default=".", help="Path to display")
+    parser.add_argument("-d", "--max-depth", type=int, default=10, help="Maximum depth")
+    parser.add_argument("-j", "--json", action="store_true", help="JSON output")
+    parser.add_argument("--show-lang", action="store_true", help="Show language icons")
+    
+    args = parser.parse_args()
+    
+    if args.json:
+        tree = get_tree_dict(args.path, args.max_depth)
+        print(json.dumps(tree, indent=2))
+    else:
+        tree = get_tree_structure(args.path, args.max_depth)
+        print(tree)
+
+
+if __name__ == "__main__":
+    main()
