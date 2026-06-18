@@ -1,200 +1,161 @@
-"""DevContext — Advanced code analysis module.
+# Analyzer module for DevContext - code analysis
 
-This module provides deeper code analysis capabilities:
-- Complexity metrics
-- Dependency graph
-- Pattern detection
-- Code quality indicators
-"""
-
+import os
 import re
 from pathlib import Path
-from typing import Any
+from typing import Dict, Any, List, Optional
 
 
-def calculate_complexity(code: str) -> dict[str, Any]:
-    """Calculate code complexity metrics.
+class Analyzer:
+    """Analyze source code files."""
     
-    Returns:
-        Dictionary with complexity metrics:
-        - lines: total lines
-        - functions: function count
-        - classes: class count
-        - conditionals: if/for/while statements
-        - complexity_score: estimated complexity
-    """
-    lines = len(code.split('\n'))
-    functions = len(re.findall(r'def\s+\w+', code))
-    classes = len(re.findall(r'class\s+\w+', code))
-    conditionals = len(re.findall(r'\b(if|for|while|except|and|or)\b', code))
+    def __init__(self):
+        self.results: Dict[str, Dict[str, Any]] = {}
     
-    # Simple complexity scoring
-    complexity = (functions * 1) + (classes * 2) + (conditionals * 0.5)
+    def analyze_file(self, filepath: str) -> Dict[str, Any]:
+        """Analyze a single file."""
+        try:
+            with open(filepath) as f:
+                content = f.read()
+            
+            ext = Path(filepath).suffix.lower()
+            result = {
+                "path": filepath,
+                "language": self._detect_language(ext),
+                "lines": len(content.split("\n")),
+                "size": len(content),
+                "functions": self._extract_functions(content, ext),
+                "classes": self._extract_classes(content, ext),
+                "imports": self._extract_imports(content, ext),
+            }
+            
+            return result
+        except Exception as e:
+            return {
+                "path": filepath,
+                "error": str(e)
+            }
     
-    return {
-        'lines': lines,
-        'functions': functions,
-        'classes': classes,
-        'conditionals': conditionals,
-        'complexity_score': round(complexity, 2)
-    }
-
-
-def detect_frameworks(code: str) -> list[str]:
-    """Detect which frameworks are used in the code."""
-    frameworks = []
+    def _detect_language(self, ext: str) -> str:
+        """Detect programming language from extension."""
+        lang_map = {
+            ".py": "python",
+            ".js": "javascript",
+            ".ts": "typescript",
+            ".tsx": "typescript",
+            ".java": "java",
+            ".c": "c",
+            ".cpp": "cpp",
+            ".h": "c",
+            ".hpp": "cpp",
+            ".go": "go",
+            ".rs": "rust",
+            ".rb": "ruby",
+            ".php": "php",
+            ".swift": "swift",
+            ".kt": "kotlin",
+            ".cs": "csharp",
+            ".m": "objectivec",
+            ".mm": "objectivec",
+        }
+        return lang_map.get(ext, "unknown")
     
-    patterns = {
-        'django': r'from django\.|import django',
-        'flask': r'from flask\.|import flask',
-        'fastapi': r'from fastapi\.|import fastapi',
-        'react': r'from react\.|import react',
-        'vue': r'from vue\.|import vue',
-        'angular': r'from @angular\.|import @angular',
-        'nextjs': r'from next[_-]?js|import next',
-        'express': r'from express\.|import express',
-        'react_native': r'ReactNative|RN',
-        'pandas': r'from pandas\.|import pandas',
-        'numpy': r'from numpy\.|import numpy',
-        'tensorflow': r'from tensorflow\.|import tensorflow',
-        'pytorch': r'from torch\.|import torch',
-        'sqlalchemy': r'from sqlalchemy\.|import sqlalchemy',
-        'requests': r'from requests\.|import requests',
-        'aiohttp': r'from aiohttp\.|import aiohttp',
-    }
-    
-    for name, pattern in patterns.items():
-        if re.search(pattern, code, re.IGNORECASE):
-            frameworks.append(name)
-    
-    return frameworks
-
-
-def extract_endpoints(code: str, language: str = 'python') -> list[dict[str, str]]:
-    """Extract API endpoints from code.
-    
-    For Python/Flask/FastAPI:
-        Looks for @app.route, @router.get, etc.
-    For JavaScript/Node:
-        Looks for app.get, router.post, etc.
-    """
-    endpoints = []
-    
-    if language == 'python':
-        # Flask/FastAPI decorators
-        patterns = [
-            r'@(\w+)\.(get|post|put|patch|delete|options)\([\"\']([^\"\']+)[\"\']\)',
-            r'@router\.(get|post|put|patch|delete|options)\([\"\']([^\"\']+)[\"\']\)',
-            r'def\s+(\w+).*?\(.*?\):.*?\"\"\"([^\"]+)\"\"\"',
-        ]
+    def _extract_functions(self, content: str, ext: str) -> List[str]:
+        """Extract function names."""
+        functions = []
         
-        for pattern in patterns:
-            for match in re.finditer(pattern, code, re.MULTILINE):
-                groups = match.groups()
-                if len(groups) >= 2:
-                    if groups[0] in ['get', 'post', 'put', 'patch', 'delete', 'options']:
-                        endpoints.append({
-                            'method': groups[0].upper(),
-                            'path': groups[1],
-                            'handler': 'decorator'
-                        })
-                    else:
-                        endpoints.append({
-                            'method': 'VIEW',
-                            'path': groups[1] if len(groups) > 1 else 'unknown',
-                            'handler': groups[0],
-                            'doc': groups[2][:50] if len(groups) > 2 else ''
-                        })
-    
-    elif language in ['javascript', 'typescript']:
-        patterns = [
-            r'(app|router)\.(get|post|put|patch|delete)\([\"\']([^\"\']+)[\"\']',
-        ]
+        if ext == ".py":
+            for match in re.finditer(r'def\s+(\w+)', content):
+                functions.append(match.group(1))
         
-        for pattern in patterns:
-            for match in re.finditer(pattern, code):
-                groups = match.groups()
-                if len(groups) >= 3:
-                    endpoints.append({
-                        'method': groups[1].upper(),
-                        'path': groups[2],
-                        'handler': groups[0]
-                    })
-    
-    return endpoints
-
-
-def build_dependency_graph(files: list[dict[str, Any]]) -> dict[str, list[str]]:
-    """Build a simple dependency graph between files.
-    
-    Args:
-        files: List of file info dicts with 'path' and 'imports'
-    
-    Returns:
-        Dict mapping file paths to their dependencies
-    """
-    graph = {}
-    
-    for file_info in files:
-        path = file_info.get('path', '')
-        imports = file_info.get('imports', [])
-        graph[path] = imports
-    
-    return graph
-
-
-def detect_code_smells(code: str) -> list[dict[str, str]]:
-    """Detect potential code quality issues.
-    
-    Returns:
-        List of detected issues with description and line number
-    """
-    issues = []
-    lines = code.split('\n')
-    
-    for i, line in enumerate(lines, 1):
-        # Long lines
-        if len(line) > 120:
-            issues.append({
-                'type': 'long_line',
-                'line': i,
-                'message': f'Line exceeds 120 characters ({len(line)})'
-            })
+        elif ext in [".js", ".mjs"]:
+            for match in re.finditer(r'function\s+(\w+)', content):
+                functions.append(match.group(1))
+            for match in re.finditer(r'const\s+(\w+)\s*=\s*\([^)]*\)\s*=>', content):
+                functions.append(match.group(1))
         
-        # TODO/FIXME comments
-        if re.search(r'\b(TODO|FIXME|HACK|XXX)\b', line, re.IGNORECASE):
-            issues.append({
-                'type': 'marker',
-                'line': i,
-                'message': 'Contains marker comment'
-            })
+        elif ext in [".ts", ".tsx"]:
+            for match in re.finditer(r'(?:function|const)\s+(\w+)\s*[=\(]', content):
+                functions.append(match.group(1))
         
-        # Hardcoded credentials
-        if re.search(r'(password|secret|api_key|token)\s*=\s*[\"\'][\w\-]{8,}', line, re.IGNORECASE):
-            issues.append({
-                'type': 'security',
-                'line': i,
-                'message': 'Potential hardcoded credential'
-            })
+        elif ext in [".java", ".kt"]:
+            for match in re.finditer(r'(?:public|private|protected)?\s*(?:static)?\s*\w+\s+(\w+)\s*\(', content):
+                functions.append(match.group(1))
+        
+        elif ext in [".go", ".rs"]:
+            for match in re.finditer(r'func(?:tion)?\s+(\w+)', content):
+                functions.append(match.group(1))
+        
+        elif ext in [".rb", ".php"]:
+            for match in re.finditer(r'def\s+(\w+)', content):
+                functions.append(match.group(1))
+        
+        return functions
     
-    return issues
+    def _extract_classes(self, content: str, ext: str) -> List[str]:
+        """Extract class names."""
+        classes = []
+        
+        patterns = {
+            ".py": r'class\s+(\w+)',
+            ".js": r'class\s+(\w+)',
+            ".ts": r'class\s+(\w+)',
+            ".java": r'class\s+(\w+)',
+            ".go": r'type\s+(\w+)\s+struct',
+            ".rs": r'struct\s+(\w+)',
+            ".rb": r'class\s+(\w+)',
+            ".php": r'class\s+(\w+)',
+        }
+        
+        pattern = patterns.get(ext)
+        if pattern:
+            for match in re.finditer(pattern, content):
+                classes.append(match.group(1))
+        
+        return classes
+    
+    def _extract_imports(self, content: str, ext: str) -> List[str]:
+        """Extract import statements."""
+        imports = []
+        
+        if ext == ".py":
+            for match in re.finditer(r'^(?:import|from)\s+[\w.]+', content, re.MULTILINE):
+                imports.append(match.group(0))
+        
+        elif ext in [".js", ".ts", ".tsx"]:
+            for match in re.finditer(r'^import\s+.+\s+from\s+[\'"](.+)[\'"]', content, re.MULTILINE):
+                imports.append(match.group(1))
+        
+        elif ext == ".go":
+            for match in re.finditer(r'^import\s+"([^"]+)"', content, re.MULTILINE):
+                imports.append(match.group(1))
+        
+        return imports
 
 
-def summarize_file(path: Path) -> dict[str, Any]:
-    """Generate a summary of a single file."""
-    try:
-        content = path.read_text(encoding='utf-8', errors='replace')
-    except Exception:
-        return {'error': 'Could not read file'}
+# CLI
+def main():
+    import argparse
+    import json
     
-    from devcontext.parser import detect_language
-    from devcontext.analyzer import calculate_complexity, detect_frameworks
+    parser = argparse.ArgumentParser(description="Analyze code files")
+    parser.add_argument("file", help="File to analyze")
+    parser.add_argument("-j", "--json", action="store_true")
     
-    return {
-        'path': str(path),
-        'language': detect_language(str(path)),
-        'size': len(content),
-        'complexity': calculate_complexity(content),
-        'frameworks': detect_frameworks(content),
-        'lines': len(content.split('\n'))
-    }
+    args = parser.parse_args()
+    
+    analyzer = Analyzer()
+    result = analyzer.analyze_file(args.file)
+    
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        print(f"File: {result['path']}")
+        print(f"Language: {result.get('language', 'unknown')}")
+        print(f"Lines: {result.get('lines', 0)}")
+        print(f"Functions: {len(result.get('functions', []))}")
+        print(f"Classes: {len(result.get('classes', []))}")
+
+
+if __name__ == "__main__":
+    main()
