@@ -1,96 +1,79 @@
-# Developer Guide
+# Development Guide
 
-## Setting Up DevContext for Development
+Guide for developing and contributing to DevContext.
 
-### Prerequisites
-- Python 3.8+
-- Git
+## Setup Development Environment
 
-### Clone and Setup
 ```bash
+# Clone repository
 git clone https://github.com/jhony91792-oss/devcontext.git
 cd devcontext
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate
+
+# Install in development mode
 pip install -e .
+
+# Install development dependencies
+pip install -r requirements-dev.txt
 ```
 
-### Running Tests
+## Running Tests
+
 ```bash
-python3 test_runner.py
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=src/devcontext
+
+# Run specific test
+pytest tests/test_devcontext.py -v
 ```
 
-### Project Structure
+## Code Quality
+
+```bash
+# Format code
+black src/
+
+# Run linter
+pylint src/devcontext/
+
+# Type checking
+mypy src/devcontext/
+```
+
+## Project Structure
+
 ```
 devcontext/
 ├── src/devcontext/     # Main source code
-│   ├── cli.py         # Entry point
-│   ├── tree.py        # File scanning
-│   ├── parser.py      # Language parsing
-│   ├── output.py      # Output formatters
-│   ├── analyzer.py    # Code analysis
-│   └── ...            # Other modules
-├── docs/              # Documentation
-├── tests/             # Test files
-└── .github/           # GitHub config
+│   ├── __init__.py     # Package init
+│   ├── cli.py          # CLI interface
+│   ├── analyzer.py     # Code analysis
+│   └── ...
+├── tests/              # Test files
+├── docs/               # Documentation
+└── .github/
+    └── workflows/      # CI/CD pipelines
 ```
 
-## Adding New Language Support
+## Adding New Modules
 
-1. Edit `src/devcontext/parser.py`
-2. Add extension to `LANG_MAP`
-3. Add regex patterns for functions/classes
-4. Add test case
+1. Create module in `src/devcontext/`
+2. Add CLI commands if needed
+3. Write tests in `tests/`
+4. Update documentation
 5. Submit PR
 
-## Adding New Output Format
+## Commit Messages
 
-1. Edit `src/devcontext/output.py`
-2. Add formatter function
-3. Update CLI in `cli.py`
-4. Add test
-5. Submit PR
-
-## Code Style
-
-- PEP 8 compliant
-- Type hints encouraged
-- Docstrings for public functions
-- Small, focused functions
-
-## Pull Request Process
-
-1. Fork the repository
-2. Create a feature branch
-3. Make changes
-4. Add tests
-5. Ensure all tests pass
-6. Update documentation
-7. Submit PR
-
-## Release Process
-
-1. Update version in `pyproject.toml`
-2. Update `CHANGELOG.md`
-3. Create git tag
-4. Push to GitHub
-5. GitHub Actions will publish to PyPI
-
-## Architecture
-
-See [architecture.md](architecture.md) for detailed architecture documentation.
-
-## Debugging
-
-```python
-# Enable verbose output
-devcontext generate . --format json -o debug.json
-
-# Check generated output
-cat debug.json
-```
-
-## Performance Profiling
-
-```bash
-python3 -m cProfile -o profile.stats -m devcontext generate .
-python3 -m pstats profile.stats
-```
+Follow conventional commits:
+- `feat:` New features
+- `fix:` Bug fixes
+- `docs:` Documentation
+- `test:` Tests
+- `refactor:` Code refactoring
