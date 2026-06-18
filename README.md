@@ -3,8 +3,8 @@
 [![Stars](https://img.shields.io/github/stars/jhony91792-oss/devcontext?style=social)](https://github.com/jhony91792-oss/devcontext)
 [![Forks](https://img.shields.io/github/forks/jhony91792-oss/devcontext?style=social)](https://github.com/jhony91792-oss/devcontext)
 [![License](https://img.shields.io/github/license/jhony91792-oss/devcontext)](https://github.com/jhony91792-oss/devcontext)
+[![Tests](https://img.shields.io/github/actions/workflow/status/jhony91792-oss/devcontext/test.yml?style=flat)](https://github.com/jhony91792-oss/devcontext/actions)
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
-[![PyPI](https://img.shields.io/badge/PyPI-coming%20soon-green.svg)](https://pypi.org)
 
 **Give your AI assistant a 200 IQ boost — feed it your entire codebase in 3 seconds.**
 
