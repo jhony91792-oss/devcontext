@@ -1,108 +1,107 @@
-# Troubleshooting Guide
+# Troubleshooting
 
-## Common Issues
+Common issues and solutions.
 
-### Installation Issues
+## Installation Issues
 
-#### "pip: command not found"
-```bash
-# Try with python3 -m pip
-python3 -m pip install devcontext
-
-# Or ensure pip is in your PATH
-export PATH="$HOME/.local/bin:$PATH"
+### pip install fails
 ```
-
-#### "Permission denied" error
+ERROR: Could not find a version that satisfies the requirement devcontext
+```
+**Solution:** Update pip and try again:
 ```bash
-# Use --user flag
-pip install --user devcontext
-
-# Or use a virtual environment
-python3 -m venv venv
-source venv/bin/activate
+pip install --upgrade pip
 pip install devcontext
 ```
 
-#### "Python version not supported"
-DevContext requires Python 3.8+. Check your version:
+### Permission denied
+```
+ERROR: Could not install packages due to permission error
+```
+**Solution:** Use `--user` flag or virtual environment:
 ```bash
-python3 --version
+pip install --user devcontext
+# or
+python -m venv venv && source venv/bin/activate && pip install devcontext
 ```
 
-If below 3.8, upgrade Python or use a different environment.
+## Usage Issues
 
-### Usage Issues
+### Slow generation on large projects
+**Problem:** Taking too long to scan large codebase
 
-#### "No output" or "empty context"
-This usually means the path doesn't exist or has no recognized files:
+**Solutions:**
+1. Use `--max-depth` to limit scan depth
+2. Add large directories to skip list
+3. Use ignore patterns in config
+
 ```bash
-# Verify path exists
-ls -la /path/to/project
-
-# Try current directory
-devcontext generate .
-
-# Check with verbose output
-devcontext tree . --max-depth 3
+devcontext generate . --max-depth 5
 ```
 
-#### "Missing language support"
-If your language isn't recognized:
-1. Check if it's in the [supported languages list](languages.md)
-2. File an issue for support request
-3. Use `--format md` for basic file listing
+### Empty or missing output
+**Problem:** No files found in output
 
-#### "File not found" errors
-Make sure you're running from the correct directory:
+**Solutions:**
+1. Check if path is correct
+2. Ensure files have supported extensions
+3. Try with `-a` flag for analysis
+
 ```bash
-cd /path/to/your/project
-devcontext generate .
+devcontext generate ./src -a
 ```
 
-### Performance Issues
+### Memory issues with very large projects
+**Problem:** Out of memory errors
 
-#### "Slow on large projects"
-For projects with 10k+ files:
+**Solutions:**
+1. Scan subdirectories separately
+2. Use compact format
+3. Increase available memory
+
 ```bash
-# Reduce depth
-devcontext generate . --max-depth 3
-
-# Exclude specific directories
-# (edit code to add to SKIP_DIRS in tree.py)
+# Scan specific subdirectory
+devcontext generate ./src/module1
 ```
 
-#### "High memory usage"
-DevContext is designed to be memory-efficient, but very large codebases may use significant RAM. No fix currently available — consider using `--max-depth` to limit scan.
+## GitHub Issues
 
-### CI/CD Issues
+### Stars not updating
+GitHub star counts can take a few minutes to update. Refresh the page after starring.
 
-#### "Tests failing in GitHub Actions"
-Check the workflow runs at: https://github.com/jhony91792-oss/devcontext/actions
+### Pages not building
+Check:
+1. Settings → Pages → Source is set to GitHub Actions
+2. No YAML syntax errors in workflow files
+3. Actions tab shows successful deployment
 
-Common fixes:
-- Ensure Python version matches (3.8+)
-- Check if tests pass locally: `python3 test_runner.py`
+## Configuration Issues
 
-#### "PyPI release failed"
-1. Ensure `PYPI_API_TOKEN` secret is set in repo settings
-2. Check tag format: must be `v*` (e.g., `v0.1.0`)
-3. Verify package builds locally: `pip install build && python -m build`
+### Config file not being read
+DevContext looks for config in this order:
+1. `.devcontextrc` (project root)
+2. `.devcontextrc.json` (project root)
+3. `devcontext.json` (project root)
+4. `~/.config/devcontext/config.json` (home)
 
-## Getting Help
+Make sure your config file exists and is valid JSON.
 
-1. Check existing [Issues](https://github.com/jhony91792-oss/devcontext/issues)
-2. Create a new issue with the bug report template
-3. Include:
-   - Python version
-   - DevContext version (`devcontext --version`)
-   - Error message
-   - Steps to reproduce
-   - OS/environment
+### Environment variables not working
+Use prefix `DEVCONTEXT_`:
+```bash
+export DEVCONTEXT_CACHE=/custom/cache/path
+export DEVCONTEXT_SKIP_DIRS=".git,node_modules"
+```
 
-## Known Limitations
+## CI/CD Issues
 
-1. **Binary files**: Not supported (images, executables, etc.)
-2. **Very large files**: Files >1MB may cause memory issues
-3. **Encrypted code**: Cannot parse encrypted or obfuscated code
-4. **Dynamic code**: Code generated at runtime won't be detected
+### GitHub Actions failures
+1. Check Actions tab for error logs
+2. Verify Python version compatibility (3.8+)
+3. Ensure all dependencies are installed
+
+### GitLab CI issues
+Verify:
+1. Python image is available
+2. pip install works
+3. devcontext command is in PATH
