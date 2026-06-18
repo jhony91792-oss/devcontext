@@ -1,219 +1,141 @@
-# Validation utilities for DevContext
+# Validation module for DevContext
 
-import os
+import json
 import re
+from typing import Dict, Any, List, Tuple, Optional
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
 
 
-class ValidationError(Exception):
-    """Validation error with details."""
-    def __init__(self, message: str, errors: List[str] = None):
-        super().__init__(message)
-        self.errors = errors or []
+class ValidationError:
+    """Represents a validation error."""
+    
+    def __init__(self, code: str, message: str, severity: str = "error"):
+        self.code = code
+        self.message = message
+        self.severity = severity
+    
+    def __repr__(self):
+        return f"[{self.severity.upper()}] {self.code}: {self.message}"
 
 
-def validate_path(path: str) -> Tuple[bool, Optional[str]]:
-    """Validate that a path exists and is accessible."""
+class ContextValidator:
+    """Validate context data."""
+    
+    def __init__(self):
+        self.errors: List[ValidationError] = []
+        self.warnings: List[ValidationError] = []
+    
+    def validate(self, context: Dict[str, Any]) -> Tuple[bool, List[ValidationError]]:
+        """Validate a context object."""
+        self.errors = []
+        self.warnings = []
+        
+        # Check required fields
+        if "version" not in context:
+            self.errors.append(ValidationError("MISSING_VERSION", "Context is missing 'version' field"))
+        
+        if "files" not in context:
+            self.errors.append(ValidationError("MISSING_FILES", "Context is missing 'files' field"))
+        elif not isinstance(context["files"], dict):
+            self.errors.append(ValidationError("INVALID_FILES", "'files' must be a dictionary"))
+        
+        # Check files
+        if "files" in context:
+            self._validate_files(context["files"])
+        
+        # Check metadata
+        if "metadata" in context:
+            self._validate_metadata(context["metadata"])
+        
+        is_valid = len(self.errors) == 0
+        return is_valid, self.errors + self.warnings
+    
+    def _validate_files(self, files: Dict[str, Any]):
+        """Validate files section."""
+        if not files:
+            self.warnings.append(ValidationError("EMPTY_FILES", "No files in context", "warning"))
+            return
+        
+        for path, info in files.items():
+            if not isinstance(path, str):
+                self.errors.append(ValidationError("INVALID_PATH", f"File path must be string: {path}"))
+            
+            if not isinstance(info, dict):
+                self.warnings.append(
+                    ValidationError("INVALID_FILE_INFO", f"File info for '{path}' should be a dict", "warning")
+                )
+    
+    def _validate_metadata(self, metadata: Dict[str, Any]):
+        """Validate metadata section."""
+        if "total_files" in metadata:
+            if not isinstance(metadata["total_files"], int):
+                self.errors.append(ValidationError("INVALID_TOTAL_FILES", "'total_files' must be an integer"))
+        
+        if "languages" in metadata:
+            if not isinstance(metadata["languages"], list):
+                self.errors.append(ValidationError("INVALID_LANGUAGES", "'languages' must be a list"))
+    
+    def validate_file_path(self, path: str) -> bool:
+        """Check if file path is safe."""
+        # Prevent path traversal
+        if ".." in path:
+            self.errors.append(ValidationError("PATH_TRAVERSAL", f"Path contains '..': {path}"))
+            return False
+        
+        # Check for absolute paths
+        if path.startswith("/"):
+            self.warnings.append(
+                ValidationError("ABSOLUTE_PATH", f"Path is absolute: {path}", "warning")
+            )
+        
+        return True
+
+
+def validate_context(context: Dict[str, Any]) -> Tuple[bool, List[ValidationError]]:
+    """Quick validation of context."""
+    validator = ContextValidator()
+    return validator.validate(context)
+
+
+def is_valid_json(text: str) -> bool:
+    """Check if text is valid JSON."""
     try:
-        p = Path(path)
-        if not p.exists():
-            return False, f"Path does not exist: {path}"
-        if not os.access(p, os.R_OK):
-            return False, f"Path is not readable: {path}"
-        return True, None
-    except Exception as e:
-        return False, f"Invalid path: {e}"
-
-
-def validate_output_format(format: str) -> bool:
-    """Check if output format is supported."""
-    return format in ["json", "md", "compact", "html"]
-
-
-def validate_language(lang: str) -> bool:
-    """Check if language is supported."""
-    valid_langs = {
-        "python", "javascript", "typescript", "go", "rust",
-        "java", "c", "cpp", "csharp", "ruby", "php", "swift",
-        "kotlin", "scala", "html", "css", "sql", "shell"
-    }
-    return lang.lower() in valid_langs
-
-
-def validate_context_structure(context: Dict[str, Any]) -> List[str]:
-    """Validate context dictionary structure. Returns list of errors."""
-    errors = []
-    
-    required_fields = ["version", "files"]
-    for field in required_fields:
-        if field not in context:
-            errors.append(f"Missing required field: {field}")
-    
-    if "files" in context:
-        if not isinstance(context["files"], dict):
-            errors.append("'files' must be a dictionary")
-    
-    if "metadata" in context:
-        if not isinstance(context["metadata"], dict):
-            errors.append("'metadata' must be a dictionary")
-    
-    return errors
-
-
-def validate_file_extension(filename: str, allowed: List[str] = None) -> bool:
-    """Check if file extension is allowed."""
-    if allowed is None:
-        return True  # Allow all if not specified
-    
-    ext = os.path.splitext(filename)[1].lower()
-    return ext in [e.lower() if e.startswith(".") else f".{e.lower()}" for e in allowed]
-
-
-def validate_gitignore_pattern(pattern: str) -> bool:
-    """Check if a gitignore pattern is valid."""
-    if not pattern or pattern.strip() == "":
+        json.loads(text)
+        return True
+    except:
         return False
-    
-    # Check for obviously invalid patterns
-    if pattern.startswith("#"):
-        return False  # Comment
-    
-    if pattern.startswith("!"):
-        return False  # Negation (allowed but we skip for simplicity)
-    
-    return True
 
 
-def validate_config(config: Dict[str, Any]) -> List[str]:
-    """Validate configuration dictionary. Returns list of errors."""
-    errors = []
-    
-    if "max_depth" in config:
-        if not isinstance(config["max_depth"], int):
-            errors.append("max_depth must be an integer")
-        elif config["max_depth"] < 1:
-            errors.append("max_depth must be at least 1")
-        elif config["max_depth"] > 100:
-            errors.append("max_depth must be at most 100")
-    
-    if "skip_dirs" in config:
-        if not isinstance(config["skip_dirs"], list):
-            errors.append("skip_dirs must be a list")
-    
-    if "include_hidden" in config:
-        if not isinstance(config["include_hidden"], bool):
-            errors.append("include_hidden must be a boolean")
-    
-    if "output_format" in config:
-        if not validate_output_format(config["output_format"]):
-            errors.append(f"Invalid output format: {config['output_format']}")
-    
-    return errors
-
-
-def validate_project_structure(root: str) -> Dict[str, Any]:
-    """
-    Validate that a project has a reasonable structure.
-    Returns validation result with issues found.
-    """
-    result = {
-        "valid": True,
-        "issues": [],
-        "warnings": [],
-        "has_readme": False,
-        "has_git": False,
-        "has_tests": False,
-        "has_docs": False,
-        "language": None
-    }
-    
-    root_path = Path(root)
-    
-    # Check for README
-    readme_candidates = ["README.md", "README.txt", "README.rst", "readme.md"]
-    for candidate in readme_candidates:
-        if (root_path / candidate).exists():
-            result["has_readme"] = True
-            break
-    
-    if not result["has_readme"]:
-        result["warnings"].append("No README found")
-    
-    # Check for .git
-    if (root_path / ".git").exists():
-        result["has_git"] = True
-    
-    # Check for tests
-    test_dirs = ["tests", "test", "spec", "__tests__"]
-    for test_dir in test_dirs:
-        if (root_path / test_dir).exists():
-            result["has_tests"] = True
-            break
-    
-    if not result["has_tests"]:
-        result["warnings"].append("No test directory found")
-    
-    # Check for docs
-    doc_dirs = ["docs", "doc", "documentation"]
-    for doc_dir in doc_dirs:
-        if (root_path / doc_dir).exists():
-            result["has_docs"] = True
-            break
-    
-    # Detect primary language
-    extensions = {}
-    for ext in ["py", "js", "ts", "go", "rs", "java", "rb", "php"]:
-        count = len(list(root_path.rglob(f"*.{ext}")))
-        if count > 0:
-            extensions[ext] = count
-    
-    if extensions:
-        result["language"] = max(extensions, key=extensions.get)
-    
-    # Overall validity
-    if result["warnings"]:
-        result["valid"] = False
-    
-    return result
-
-
-# CLI validation command
+# CLI
 def main():
     import argparse
-    import json
-    
     parser = argparse.ArgumentParser(description="Validate DevContext output")
-    parser.add_argument("path", nargs="?", default=".", help="Path to validate")
-    parser.add_argument("--strict", action="store_true", help="Enable strict validation")
+    parser.add_argument("file", help="Context JSON file to validate")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show all errors/warnings")
     
     args = parser.parse_args()
     
-    # Validate path
-    valid, error = validate_path(args.path)
-    if not valid:
-        print(f"❌ {error}")
-        return 1
+    with open(args.file) as f:
+        context = json.load(f)
     
-    # Check structure
-    result = validate_project_structure(args.path)
+    validator = ContextValidator()
+    is_valid, issues = validator.validate(context)
     
-    print("Project Validation Results:")
-    print(f"  README: {'✅' if result['has_readme'] else '⚠️'}")
-    print(f"  Git:    {'✅' if result['has_git'] else '⚠️'}")
-    print(f"  Tests:  {'✅' if result['has_tests'] else '⚠️'}")
-    print(f"  Docs:   {'✅' if result['has_docs'] else '⚠️'}")
+    if is_valid:
+        print("✅ Context is valid")
+    else:
+        print("❌ Context has errors:")
+        for issue in issues:
+            if issue.severity == "error":
+                print(f"  ❌ {issue.code}: {issue.message}")
     
-    if result['language']:
-        print(f"  Lang:   {result['language']}")
-    
-    if result['warnings']:
-        print("\nWarnings:")
-        for w in result['warnings']:
-            print(f"  ⚠️ {w}")
-    
-    return 0
+    if args.verbose:
+        warnings = [i for i in issues if i.severity == "warning"]
+        if warnings:
+            print(f"\n⚠️  Warnings ({len(warnings)}):")
+            for warning in warnings:
+                print(f"  ⚠️ {warning.code}: {warning.message}")
 
 
 if __name__ == "__main__":
-    exit(main() or 0)
+    main()
