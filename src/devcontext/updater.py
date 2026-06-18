@@ -1,143 +1,113 @@
-# Autoupdate module for DevContext
+# Updater module for DevContext - check for updates
 
 import os
-import sys
 import json
 import subprocess
-from pathlib import Path
-from typing import Optional, Dict, Any
-from datetime import datetime
+from typing import Dict, Any, Optional
+from urllib.request import Request, urlopen
 
 
-class UpdateChecker:
-    """Check for DevContext updates."""
+class Updater:
+    """Check for and apply updates."""
     
-    PYPI_URL = "https://pypi.org/pypi/devcontext/json"
-    GITHUB_RELEASES = "https://api.github.com/repos/jhony91792-oss/devcontext/releases"
+    def __init__(self, package_name: str = "devcontext"):
+        self.package_name = package_name
+        self.current_version = "0.1.0"
     
-    def __init__(self, current_version: str = "0.1.0"):
-        self.current_version = current_version
-    
-    def check_pypi(self) -> Optional[Dict[str, Any]]:
-        """Check latest version on PyPI."""
+    def get_current_version(self) -> str:
+        """Get current installed version."""
         try:
-            import urllib.request
-            req = urllib.request.Request(self.PYPI_URL)
-            with urllib.request.urlopen(req, timeout=10) as r:
+            result = subprocess.run(
+                ["devcontext", "--version"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+        except:
+            pass
+        
+        return self.current_version
+    
+    def get_latest_version(self) -> Optional[str]:
+        """Get latest version from PyPI."""
+        try:
+            req = Request(
+                f"https://pypi.org/pypi/{self.package_name}/json",
+                headers={"User-Agent": "DevContext/0.1.0"}
+            )
+            
+            with urlopen(req, timeout=10) as r:
                 data = json.loads(r.read())
-                latest = data['info']['version']
-                return {
-                    "latest": latest,
-                    "current": self.current_version,
-                    "outdated": self._compare_versions(latest) > 0
-                }
-        except Exception:
+            
+            return data["info"]["version"]
+        except:
             return None
     
-    def _compare_versions(self, latest: str) -> int:
-        """Compare versions. Returns: -1 if current < latest, 0 if equal, 1 if newer."""
-        from packaging import version
-        try:
-            if version.parse(self.current_version) < version.parse(latest):
-                return -1
-            elif version.parse(self.current_version) > version.parse(latest):
-                return 1
-            return 0
-        except Exception:
-            return 0
-    
-    def check_github(self) -> Optional[Dict[str, Any]]:
-        """Check GitHub releases."""
-        try:
-            import urllib.request
-            token = os.environ.get("GITHUB_TOKEN", "")
-            headers = {
-                "User-Agent": "DevContext/1.0",
-                "Accept": "application/vnd.github+json"
+    def check_update(self) -> Dict[str, Any]:
+        """Check if update is available."""
+        current = self.get_current_version()
+        latest = self.get_latest_version()
+        
+        if not latest:
+            return {
+                "update_available": False,
+                "error": "Could not fetch latest version"
             }
-            if token:
-                headers["Authorization"] = f"Bearer {token}"
-            
-            req = urllib.request.Request(self.GITHUB_RELEASES, headers=headers)
-            with urllib.request.urlopen(req, timeout=10) as r:
-                releases = json.loads(r.read())
-                if releases:
-                    latest = releases[0]
-                    return {
-                        "tag": latest.get("tag_name"),
-                        "name": latest.get("name"),
-                        "url": latest.get("html_url"),
-                        "published": latest.get("published_at")
-                    }
-        except Exception:
-            pass
-        return None
-    
-    def get_update_info(self) -> Dict[str, Any]:
-        """Get complete update information."""
+        
+        # Simple version comparison
+        update_available = current != latest
+        
         return {
-            "current_version": self.current_version,
-            "pypi": self.check_pypi(),
-            "github": self.check_github(),
-            "checked_at": datetime.now().isoformat()
+            "update_available": update_available,
+            "current_version": current,
+            "latest_version": latest
         }
-
-
-def check_for_updates() -> bool:
-    """Check if updates are available. Returns True if update needed."""
-    checker = UpdateChecker()
-    info = checker.get_update_info()
     
-    pypi = info.get("pypi")
-    if pypi and pypi.get("outdated"):
-        print(f"Update available: {pypi['latest']} (current: {pypi['current']})")
-        return True
-    
-    return False
-
-
-def install_update() -> bool:
-    """Install latest update from PyPI."""
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "--upgrade", "devcontext"],
-            check=True
-        )
-        return True
-    except subprocess.CalledProcessError:
-        return False
+    def update(self) -> bool:
+        """Update to latest version."""
+        try:
+            result = subprocess.run(
+                ["pip", "install", "--upgrade", self.package_name],
+                capture_output=True,
+                text=True
+            )
+            return result.returncode == 0
+        except:
+            return False
 
 
 # CLI
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Check for DevContext updates")
-    parser.add_argument("--check", action="store_true", help="Check for updates")
-    parser.add_argument("--install", action="store_true", help="Install latest version")
+    parser = argparse.ArgumentParser(description="DevContext updater")
+    sub = parser.add_subparsers(dest="command")
+    
+    check_cmd = sub.add_parser("check", help="Check for updates")
+    check_cmd.add_argument("-j", "--json", action="store_true")
+    
+    update_cmd = sub.add_parser("update", help="Update to latest version")
     
     args = parser.parse_args()
     
-    checker = UpdateChecker()
+    updater = Updater()
     
-    if args.check or (not args.check and not args.install):
-        info = checker.get_update_info()
-        print(f"Current version: {info['current_version']}")
+    if args.command == "check":
+        result = updater.check_update()
         
-        pypi = info.get('pypi')
-        if pypi:
-            if pypi.get('outdated'):
-                print(f"⚠️ Update available: {pypi['latest']}")
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            if result.get("update_available"):
+                print(f"⚠️  Update available: {result['current_version']} → {result['latest_version']}")
             else:
-                print("✅ You have the latest version")
-        
-        github = info.get('github')
-        if github:
-            print(f"Latest GitHub release: {github.get('tag')}")
+                print(f"✅ You're running the latest version: {result['current_version']}")
     
-    if args.install:
-        print("Installing update...")
-        if install_update():
-            print("✅ Update installed!")
+    elif args.command == "update":
+        print("Updating...")
+        if updater.update():
+            print("✅ Update complete")
         else:
             print("❌ Update failed")
 
