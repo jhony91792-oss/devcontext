@@ -1,166 +1,137 @@
-# Statistics tracking for DevContext
+# Stats module for DevContext - statistics tracking
 
 import json
-import time
+from typing import Dict, Any, List
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
 
 
 class StatsTracker:
     """Track DevContext usage statistics."""
     
-    def __init__(self, stats_file: Optional[str] = None):
-        if stats_file is None:
-            from devcontext.compat import get_cache_dir
-            get_cache_dir()
-            stats_file = Path("~/.cache/devcontext/stats.json").expanduser()
+    def __init__(self, storage_path: str = None):
+        if storage_path is None:
+            storage_path = str(Path.home() / ".cache" / "devcontext" / "stats.json")
         
-        self.stats_file = Path(stats_file)
-        self.stats_file.parent.mkdir(parents=True, exist_ok=True)
+        self.storage_path = Path(storage_path)
         self.stats = self._load()
     
     def _load(self) -> Dict[str, Any]:
-        """Load stats from file."""
-        if self.stats_file.exists():
+        """Load stats from storage."""
+        if self.storage_path.exists():
             try:
-                with open(self.stats_file) as f:
+                with open(self.storage_path) as f:
                     return json.load(f)
-            except (json.JSONDecodeError, OSError):
+            except:
                 pass
         
-        return self._default_stats()
-    
-    def _default_stats(self) -> Dict[str, Any]:
-        """Get default stats structure."""
         return {
-            "total_runs": 0,
-            "total_files_scanned": 0,
-            "total_bytes_processed": 0,
-            "languages_used": {},
-            "last_run": None,
-            "last_run_duration": 0,
-            "errors": 0,
-            "star_history": [],
-            "installs": 0,
+            "total_generations": 0,
+            "total_files_processed": 0,
+            "total_time_seconds": 0,
+            "formats_used": {},
+            "paths_scanned": [],
+            "last_run": None
         }
     
     def _save(self):
-        """Save stats to file."""
-        try:
-            with open(self.stats_file, 'w') as f:
-                json.dump(self.stats, f, indent=2)
-        except OSError:
-            pass
+        """Save stats to storage."""
+        self.storage_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.storage_path, 'w') as f:
+            json.dump(self.stats, f, indent=2)
     
-    def record_run(self, files_scanned: int = 0, bytes_processed: int = 0,
-                   language: str = None, duration: float = 0,
-                   success: bool = True):
-        """Record a run."""
-        self.stats["total_runs"] += 1
+    def record_generation(self, path: str, format: str, files: int, duration: float):
+        """Record a context generation."""
+        self.stats["total_generations"] += 1
+        self.stats["total_files_processed"] += files
+        self.stats["total_time_seconds"] += duration
         self.stats["last_run"] = datetime.now().isoformat()
-        self.stats["last_run_duration"] = duration
-        self.stats["total_files_scanned"] += files_scanned
-        self.stats["total_bytes_processed"] += bytes_processed
         
-        if language:
-            lang_stats = self.stats["languages_used"]
-            lang_stats[language] = lang_stats.get(language, 0) + 1
+        # Track format usage
+        if format not in self.stats["formats_used"]:
+            self.stats["formats_used"][format] = 0
+        self.stats["formats_used"][format] += 1
         
-        if not success:
-            self.stats["errors"] += 1
+        # Track unique paths
+        if path not in self.stats["paths_scanned"]:
+            self.stats["paths_scanned"].append(path)
         
         self._save()
     
-    def record_star(self, count: int):
-        """Record star count."""
-        self.stats["star_history"].append({
-            "count": count,
-            "timestamp": datetime.now().isoformat()
-        })
-        self._save()
-    
-    def get_summary(self) -> Dict[str, Any]:
-        """Get stats summary."""
+    def get_stats(self) -> Dict[str, Any]:
+        """Get current statistics."""
+        avg_time = (
+            self.stats["total_time_seconds"] / self.stats["total_generations"]
+            if self.stats["total_generations"] > 0 else 0
+        )
+        
         return {
-            "total_runs": self.stats["total_runs"],
-            "total_files_scanned": self.stats["total_files_scanned"],
-            "languages_used": self.stats["languages_used"],
-            "last_run": self.stats["last_run"],
-            "avg_duration": self.stats["last_run_duration"],
-            "errors": self.stats["errors"],
+            "total_generations": self.stats["total_generations"],
+            "total_files_processed": self.stats["total_files_processed"],
+            "avg_generation_time": round(avg_time, 3),
+            "total_time_seconds": round(self.stats["total_time_seconds"], 2),
+            "formats_used": self.stats["formats_used"],
+            "unique_paths": len(self.stats["paths_scanned"]),
+            "last_run": self.stats["last_run"]
         }
     
-    def get_top_languages(self, n: int = 5) -> List[tuple]:
-        """Get top N languages by usage."""
-        langs = self.stats.get("languages_used", {})
-        return sorted(langs.items(), key=lambda x: x[1], reverse=True)[:n]
-    
-    def get_star_history(self) -> List[Dict[str, Any]]:
-        """Get star count history."""
-        return self.stats.get("star_history", [])
-    
-    def clear(self):
-        """Clear all stats."""
-        self.stats = self._default_stats()
+    def reset(self):
+        """Reset all statistics."""
+        self.stats = {
+            "total_generations": 0,
+            "total_files_processed": 0,
+            "total_time_seconds": 0,
+            "formats_used": {},
+            "paths_scanned": [],
+            "last_run": None
+        }
         self._save()
 
 
-# Global stats tracker instance
-_stats: Optional[StatsTracker] = None
+def get_stats() -> Dict[str, Any]:
+    """Quick stats retrieval."""
+    tracker = StatsTracker()
+    return tracker.get_stats()
 
 
-def get_stats() -> StatsTracker:
-    """Get global stats tracker."""
-    global _stats
-    if _stats is None:
-        _stats = StatsTracker()
-    return _stats
-
-
-# CLI commands
+# CLI
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="DevContext Statistics")
+    parser = argparse.ArgumentParser(description="DevContext statistics")
     sub = parser.add_subparsers(dest="command")
     
-    show = sub.add_parser("show", help="Show stats summary")
-    show.add_argument("--json", action="store_true", help="JSON output")
+    show_cmd = sub.add_parser("show", help="Show statistics")
+    show_cmd.add_argument("-j", "--json", action="store_true")
     
-    history = sub.add_parser("history", help="Show star history")
-    
-    clear = sub.add_parser("clear", help="Clear all stats")
+    reset_cmd = sub.add_parser("reset", help="Reset statistics")
+    reset_cmd.add_argument("-y", "--yes", action="store_true")
     
     args = parser.parse_args()
     
-    stats = get_stats()
+    tracker = StatsTracker()
     
     if args.command == "show":
+        stats = tracker.get_stats()
+        
         if args.json:
-            print(json.dumps(stats.get_summary(), indent=2))
+            print(json.dumps(stats, indent=2))
         else:
-            summary = stats.get_summary()
             print("DevContext Statistics")
             print("=" * 40)
-            print(f"Total runs: {summary['total_runs']}")
-            print(f"Files scanned: {summary['total_files_scanned']}")
-            print(f"Last run: {summary['last_run']}")
-            print(f"Errors: {summary['errors']}")
-            print("\nTop languages:")
-            for lang, count in stats.get_top_languages():
-                print(f"  {lang}: {count}")
+            print(f"Total generations: {stats['total_generations']}")
+            print(f"Total files: {stats['total_files_processed']}")
+            print(f"Avg time: {stats['avg_generation_time']}s")
+            print(f"Unique paths: {stats['unique_paths']}")
+            print(f"Last run: {stats['last_run'] or 'Never'}")
+            print()
+            print("Formats used:")
+            for fmt, count in stats['formats_used'].items():
+                print(f"  {fmt}: {count}")
     
-    elif args.command == "history":
-        history = stats.get_star_history()
-        if not history:
-            print("No star history yet")
-        else:
-            for entry in history:
-                print(f"{entry['timestamp']}: {entry['count']} stars")
-    
-    elif args.command == "clear":
-        stats.clear()
-        print("Stats cleared")
+    elif args.command == "reset":
+        if args.yes or input("Reset all stats? (y/n) ").lower() == 'y':
+            tracker.reset()
+            print("Statistics reset")
 
 
 if __name__ == "__main__":
