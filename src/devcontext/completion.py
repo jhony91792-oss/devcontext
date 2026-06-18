@@ -1,166 +1,158 @@
-# Shell completion for DevContext
+# Shell completion generator for DevContext
 
 import os
-import sys
 from pathlib import Path
+from typing import List
 
 
-def generate_bash_completion() -> str:
-    """Generate bash completion script."""
-    return '''#!/bin/bash
-# DevContext bash completion
-
-_devcontext() {
+BASH_COMPLETION = '''#!/bin/bash
+_devcontext_completion()
+{
     local cur prev opts
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    
-    opts="generate tree parse --help --version"
-    gen_opts="-o --output -f --format --max-depth -a --analyze --no-stats"
-    
-    case "${COMP_CWORD}" in
-        1)
+
+    opts="generate tree parse config plugins backup snapshot report"
+    subcmds_generate="--output --format --max-depth --analyze --no-stats"
+    subcmds_tree="--max-depth --show-lang"
+    subcmds_parse="--format"
+
+    case "${prev}" in
+        devcontext)
             COMPREPLY=($(compgen -W "${opts}" -- ${cur}))
+            return 0
             ;;
-        2)
-            case "${prev}" in
-                generate)
-                    COMPREPLY=($(compgen -d -- ${cur}))
-                    ;;
-                tree)
-                    COMPREPLY=($(compgen -d -- ${cur}))
-                    ;;
-                parse)
-                    COMPREPLY=($(compgen -f -- ${cur}))
-                    ;;
-            esac
+        generate)
+            COMPREPLY=($(compgen -W "${subcmds_generate}" -- ${cur}))
+            return 0
             ;;
-        3)
-            case "${prev}" in
-                -o|--output)
-                    COMPREPLY=($(compgen -f -- ${cur}))
-                    ;;
-                -f|--format)
-                    COMPREPLY=($(compgen -W "json md html compact" -- ${cur}))
-                    ;;
-                --max-depth)
-                    COMPREPLY=($(compgen -W "1 2 3 5 10 20" -- ${cur}))
-                    ;;
-            esac
+        tree)
+            COMPREPLY=($(compgen -W "${subcmds_tree}" -- ${cur}))
+            return 0
+            ;;
+        parse)
+            COMPREPLY=($(compgen -W "${subcmds_parse}" -- ${cur}))
+            return 0
+            ;;
+        -f|--format)
+            COMPREPLY=($(compgen -W "json md html compact" -- ${cur}))
+            return 0
+            ;;
+        -o|--output)
+            COMPREPLY=($(compgen -f -- ${cur}))
+            return 0
             ;;
     esac
-    
-    return 0
 }
 
-complete -F _devcontext devcontext
+complete -F _devcontext_completion devcontext
 '''
 
-
-def generate_zsh_completion() -> str:
-    """Generate zsh completion script."""
-    return '''#compdef devcontext
+ZSH_COMPLETION = '''#compdef devcontext
 
 _devcontext() {
-    local -a commands opts
-    
+    local -a commands
     commands=(
         "generate:Generate context from codebase"
-        "tree:Show file tree"
+        "tree:Show project tree"
         "parse:Parse single file"
+        "config:Configuration management"
+        "plugins:Plugin management"
+        "backup:Backup management"
+        "report:Generate reports"
     )
-    
+
+    _describe 'command' commands
+}
+
+devcontext() {
+    local -a opts
     opts=(
         "--help[Show help]"
         "--version[Show version]"
     )
-    
-    if [[ CURRENT -eq 2 ]]; then
-        _describe 'command' commands
-    else
-        _describe 'option' opts
-    fi
+
+    case "$words[1]" in
+        generate)
+            _devcontext_generate
+            ;;
+        tree)
+            _devcontext_tree
+            ;;
+    esac
 }
+'''
 
-_devcontext "$@"
+FISH_COMPLETION = '''devcontext (Generate AI-ready context from codebases)
+    devcontext generate - Generate context from codebase
+    devcontext tree - Show project tree
+    devcontext parse - Parse single file
+    devcontext config - Configuration management
+    devcontext plugins - Plugin management
 '''
 
 
-def generate_fish_completion() -> str:
-    """Generate fish completion script."""
-    return '''# DevContext fish completion
-
-complete -c devcontext -n '__fish_use_subcommand' -a 'generate' -d 'Generate context'
-complete -c devcontext -n '__fish_use_subcommand' -a 'tree' -d 'Show file tree'
-complete -c devcontext -n '__fish_use_subcommand' -a 'parse' -d 'Parse file'
-
-complete -c devcontext -s h -l help -d 'Show help'
-complete -c devcontext -s v -l version -d 'Show version'
-complete -c devcontext -s o -l output -d 'Output file' -r
-complete -c devcontext -s f -l format -d 'Format' -w 'json md html compact'
-complete -c devcontext -l max-depth -d 'Max depth' -a '1 2 3 5 10 20'
-'''
-
-
-def install_completion(shell: str = None) -> bool:
-    """Install completion for the current shell."""
-    if shell is None:
-        shell = os.path.basename(os.environ.get("SHELL", "bash"))
+def install_bash_completion(install_path: str = None) -> bool:
+    """Install bash completion."""
+    if install_path is None:
+        install_path = os.path.expanduser("~/.bash_completion.d/devcontext")
     
-    home = Path.home()
+    Path(install_path).parent.mkdir(parents=True, exist_ok=True)
     
-    completions_dir = None
-    completion_content = None
-    
-    if shell in ("bash", "sh"):
-        completions_dir = home / ".bash_completion.d"
-        completion_content = generate_bash_completion()
-        completions_dir.mkdir(exist_ok=True)
-        (completions_dir / "devcontext").write_text(completion_content)
-        
-    elif shell in ("zsh",):
-        completions_dir = home / ".zsh" / "completions"
-        completion_content = generate_zsh_completion()
-        completions_dir.mkdir(parents=True, exist_ok=True)
-        (completions_dir / "_devcontext").write_text(completion_content)
-        
-    elif shell in ("fish",):
-        completions_dir = home / ".config" / "fish" / "completions"
-        completion_content = generate_fish_completion()
-        completions_dir.mkdir(parents=True, exist_ok=True)
-        (completions_dir / "devcontext.fish").write_text(completion_content)
-    
-    else:
-        return False
+    with open(install_path, 'w') as f:
+        f.write(BASH_COMPLETION)
     
     return True
 
 
+def install_zsh_completion(install_path: str = None) -> bool:
+    """Install zsh completion."""
+    if install_path is None:
+        install_path = os.path.expanduser("~/.zsh/completions/_devcontext")
+    
+    Path(install_path).parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(install_path, 'w') as f:
+        f.write(ZSH_COMPLETION)
+    
+    return True
+
+
+def install_fish_completion(install_path: str = None) -> bool:
+    """Install fish completion."""
+    if install_path is None:
+        install_path = os.path.expanduser("~/.config/fish/completions/devcontext.fish")
+    
+    Path(install_path).parent.mkdir(parents=True, exist_ok=True)
+    
+    with open(install_path, 'w') as f:
+        f.write(FISH_COMPLETION)
+    
+    return True
+
+
+# CLI
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="DevContext shell completions")
-    parser.add_argument("--bash", action="store_true", help="Generate bash completion")
-    parser.add_argument("--zsh", action="store_true", help="Generate zsh completion")
-    parser.add_argument("--fish", action="store_true", help="Generate fish completion")
-    parser.add_argument("--install", action="store_true", help="Install for current shell")
-    parser.add_argument("--print", action="store_true", help="Print completion script")
+    parser = argparse.ArgumentParser(description="Install shell completions")
+    parser.add_argument("-s", "--shell", choices=["bash", "zsh", "fish", "all"], default="all")
+    parser.add_argument("-q", "--quiet", action="store_true")
     
     args = parser.parse_args()
     
-    if args.bash:
-        print(generate_bash_completion())
-    elif args.zsh:
-        print(generate_zsh_completion())
-    elif args.fish:
-        print(generate_fish_completion())
-    elif args.install:
-        if install_completion():
-            print("Completion installed!")
+    shells = ["bash", "zsh", "fish"] if args.shell == "all" else [args.shell]
+    
+    for shell in shells:
+        if shell == "bash":
+            success = install_bash_completion()
+        elif shell == "zsh":
+            success = install_zsh_completion()
         else:
-            print("Failed to install completion")
-    else:
-        parser.print_help()
+            success = install_fish_completion()
+        
+        if success and not args.quiet:
+            print(f"✅ {shell} completion installed")
 
 
 if __name__ == "__main__":
