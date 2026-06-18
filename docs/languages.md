@@ -1,68 +1,92 @@
 # Supported Languages
 
-DevContext supports 20+ programming languages out of the box.
+DevContext supports 20+ programming languages.
 
-## First-Class Support (Full Parsing)
+## Fully Supported
 
-These languages have complete function, class, and import extraction:
+### Python
+```python
+# File extensions: .py
+# Detects: functions, classes, imports, decorators
+```
 
-| Language | Extensions | Functions | Classes | Imports | 
-|----------|------------|-----------|---------|---------|
-| Python | `.py`, `.pyw` | ✅ | ✅ | ✅ |
-| JavaScript | `.js`, `.mjs`, `.cjs` | ✅ | ✅ | ✅ |
-| TypeScript | `.ts`, `.tsx`, `.jsx` | ✅ | ✅ | ✅ |
-| Go | `.go` | ✅ | ✅ | ✅ |
-| Rust | `.rs` | ✅ | ✅ | ✅ |
-| Java | `.java` | ✅ | ✅ | ✅ |
-| C | `.c`, `.h` | ✅ | ✅ | ✅ |
-| C++ | `.cpp`, `.hpp`, `.cc` | ✅ | ✅ | ✅ |
-| C# | `.cs` | ✅ | ✅ | ✅ |
-| Ruby | `.rb` | ✅ | ✅ | ✅ |
-| PHP | `.php` | ✅ | ✅ | ✅ |
-| Swift | `.swift` | ✅ | ✅ | ✅ |
-| Kotlin | `.kt`, `.kts` | ✅ | ✅ | ✅ |
-| Scala | `.scala` | ✅ | ✅ | ✅ |
+### JavaScript
+```javascript
+// File extensions: .js, .mjs
+// Detects: functions, classes, arrow functions, imports
+```
 
-## Second-Class Support (File Detection)
+### TypeScript
+```typescript
+// File extensions: .ts, .tsx
+// Detects: functions, classes, interfaces, types
+```
 
-These languages are detected and included in file tree, with basic structural awareness:
+### Java
+```java
+// File extensions: .java
+// Detects: methods, classes, interfaces
+```
 
-| Language | Extensions |
-|----------|------------|
-| Vue | `.vue` |
-| Svelte | `.svelte` |
-| HTML | `.html`, `.htm` |
-| CSS | `.css`, `.scss`, `.sass`, `.less` |
-| SQL | `.sql` |
-| Shell | `.sh`, `.bash`, `.zsh`, `.fish` |
-| PowerShell | `.ps1`, `.psm1` |
-| GraphQL | `.graphql`, `.gql` |
-| JSON | `.json` |
-| YAML | `.yaml`, `.yml` |
-| TOML | `.toml` |
-| Markdown | `.md`, `.rst` |
+### C/C++
+```c
+// File extensions: .c, .cpp, .h, .hpp
+// Detects: functions, classes, structs
+```
 
-## Framework Detection
+### Go
+```go
+// File extensions: .go
+// Detects: functions, methods, structs
+```
 
-DevContext can detect these frameworks within supported languages:
+### Rust
+```rust
+// File extensions: .rs
+// Detects: functions, impl blocks, structs
+```
 
-- **Python**: Django, Flask, FastAPI, Pandas, NumPy, TensorFlow, PyTorch, SQLAlchemy, Requests, AioHTTP
-- **JavaScript/TypeScript**: React, Vue, Angular, Next.js, Express, React Native
-- **Go**: Standard library, Gin, Echo, Fiber
+### Ruby
+```ruby
+# File extensions: .rb
+# Detects: methods, classes, modules
+```
 
-## Language Request
+### PHP
+```php
+// File extensions: .php
+// Detects: functions, classes, methods
+```
 
-Don't see your language? Open an issue with:
-1. Language name
-2. File extensions
-3. Sample code showing function/class syntax
+### Swift
+```swift
+// File extensions: .swift
+// Detects: functions, structs, classes
+```
 
-We'll add support in the next release!
+### Kotlin
+```kotlin
+// File extensions: .kt
+// Detects: functions, classes, objects
+```
 
-## Contributing
+## Other Supported Languages
 
-To add support for a new language:
-1. Add file extension to `LANG_MAP` in `src/devcontext/parser.py`
-2. Add regex patterns for functions, classes, imports
-3. Add tests
-4. Submit a PR
+- HTML (.html, .htm)
+- CSS (.css, .scss, .sass, .less)
+- SQL (.sql)
+- Shell/Bash (.sh, .bash)
+- YAML (.yaml, .yml)
+- JSON (.json)
+- XML (.xml)
+- Markdown (.md)
+- TOML (.toml)
+- Lua (.lua)
+- R (.r, .R)
+- Scala (.scala)
+- C# (.cs)
+- Objective-C (.m, .mm)
+
+## Language Detection
+
+DevContext automatically detects languages based on file extensions.
