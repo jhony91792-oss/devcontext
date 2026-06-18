@@ -1,88 +1,101 @@
-# API Documentation
+# API Reference
 
-## Python API
+Python API documentation for DevContext.
 
-DevContext can be used programmatically:
+## DevContext
+
+Main class for generating context.
 
 ```python
-from devcontext.tree import scan_directory, FileTree
-from devcontext.parser import parse_file, detect_language
-from devcontext.output import format_json, format_markdown
-from pathlib import Path
+from devcontext import DevContext
 
-# Scan a directory
-files = scan_directory('./myproject')
-# Returns: [{'path': 'main.py', 'type': 'file', ...}, ...]
-
-# Parse a file
-result = parse_file(Path('main.py'))
-# Returns: {'path': 'main.py', 'language': 'python', 'functions': [...], 'classes': [...]}
-
-# Format output
-json_output = format_json({'version': '0.1.0', 'files': files})
-md_output = format_markdown({'version': '0.1.0', 'files': files})
+dc = DevContext(path=".")
+context = dc.generate()
 ```
 
-## CLI Reference
+### Constructor
 
-### `devcontext generate`
-
-Generate AI-ready context from codebase.
-
-```bash
-devcontext generate <path> [options]
-```
-
-Options:
-- `-o, --output FILE` — Save output to file
-- `-f, --format [json|md|compact]` — Output format (default: json)
-- `--max-depth N` — Maximum directory depth (default: 5)
-
-### `devcontext tree`
-
-Show file tree structure.
-
-```bash
-devcontext tree <path> [options]
-```
-
-Options:
-- `--max-depth N` — Maximum depth (default: 5)
-
-### `devcontext parse`
-
-Parse code structure.
-
-```bash
-devcontext parse <path> [options]
-```
-
-Options:
-- `--files GLOB` — File filter pattern
-- `--max-depth N` — Maximum depth (default: 5)
-
-## Return Types
-
-### FileNode
 ```python
+DevContext(path: str = ".", max_depth: int = 10)
+```
+
+Parameters:
+- `path` (str): Directory to analyze
+- `max_depth` (int): Maximum directory depth
+
+### Methods
+
+#### generate()
+
+Generate context from codebase.
+
+```python
+context = dc.generate(format: str = "json")
+```
+
+Parameters:
+- `format` (str): Output format - "json", "md", "html", "compact"
+
+Returns:
+- Dict containing context data
+
+## Context Structure
+
+```json
 {
-    'path': str,      # Relative path
-    'type': str,      # 'file' or 'dir'
-    'size': int,      # File size in bytes (files only)
-    'depth': int,     # Directory depth
-    'ext': str        # File extension (files only)
+    "version": "0.1.0",
+    "metadata": {
+        "name": "project-name",
+        "total_files": 42,
+        "languages": ["python", "javascript"],
+        "total_functions": 156,
+        "total_classes": 23
+    },
+    "files": {
+        "src/main.py": {
+            "language": "python",
+            "functions": ["main", "init"],
+            "classes": ["App"],
+            "lines": 150
+        }
+    }
 }
 ```
 
-### ParseResult
+## CLI Module
+
 ```python
-{
-    'path': str,
-    'language': str,    # e.g., 'python', 'javascript'
-    'lines': int,
-    'size': int,
-    'functions': list,  # Function names
-    'classes': list,    # Class names
-    'imports': list     # Import statements
-}
+from devcontext.cli import main
+
+if __name__ == "__main__":
+    main()
+```
+
+## Config
+
+```python
+from devcontext.config import Config
+
+config = Config()
+config.load()
+config.set("max_depth", 5)
+config.save()
+```
+
+## Reporter
+
+```python
+from devcontext.reporter import Reporter
+
+reporter = Reporter(context)
+report = reporter.generate_full_report()
+```
+
+## Search
+
+```python
+from devcontext.search import ContextSearch
+
+searcher = ContextSearch(context)
+results = searcher.search_functions("test")
 ```
