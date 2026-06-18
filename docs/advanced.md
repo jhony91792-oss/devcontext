@@ -1,86 +1,124 @@
 # Advanced Usage
 
-## Complexity Analysis
+Advanced DevContext techniques and workflows.
 
-DevContext can analyze code complexity:
+## Combining with AI
 
-```python
-from devcontext.analyzer import calculate_complexity, detect_frameworks
+### ChatGPT Workflow
+```bash
+# Generate context
+devcontext generate . -f compact > /tmp/ctx.txt
 
-code = open('main.py').read()
-metrics = calculate_complexity(code)
-print(f"Complexity score: {metrics['complexity_score']}")
-print(f"Functions: {metrics['functions']}")
-print(f"Classes: {metrics['classes']}")
+# Copy to clipboard
+cat /tmp/ctx.txt | pbcopy
+
+# In ChatGPT, paste with your question:
+# "Help me understand and refactor this codebase: [paste]"
 ```
 
-## Framework Detection
+### Claude Workflow
+```bash
+# Generate detailed context
+devcontext generate . -a -f md > /tmp/ctx.md
 
-Automatically detect frameworks used in your codebase:
-
-```python
-from devcontext.analyzer import detect_frameworks
-
-code = open('app.py').read()
-frameworks = detect_frameworks(code)
-print(f"Frameworks: {frameworks}")
-# Output: ['django', 'requests']
+# Use in Claude:
+# /read /tmp/ctx.md
+# "Analyze this code and suggest improvements"
 ```
 
-## API Usage
+## CI/CD Advanced
 
-```python
-from devcontext.tree import scan_directory
-from devcontext.parser import parse_file
-from devcontext.output import format_json
-
-# Full pipeline
-files = scan_directory('./project')
-parsed = [parse_file(f) for f in files if f.is_file()]
-print(format_json({'files': parsed}))
-```
-
-## Integration Examples
-
-### VS Code Task
-Add to `.vscode/tasks.json`:
-```json
-{
-    "label": "Generate AI Context",
-    "type": "shell",
-    "command": "devcontext generate . -o .devcontext.json",
-    "problemMatcher": []
-}
-```
-
-### GitHub Actions
+### GitHub Actions with Artifacts
 ```yaml
-- name: Generate Code Context
+- name: Generate Context
   run: |
-    pip install devcontext
     devcontext generate . -o context.json
-    
-- name: AI Review
-  uses: your-ai-tool@v1
+  
+- name: Upload Context
+  uses: actions/upload-artifact@v4
   with:
-    context: ${{ env.context }}
+    name: code-context
+    path: context.json
 ```
 
-### Pre-commit Hook
-Add to `.pre-commit-config.yaml`:
+### Scheduled Context Generation
 ```yaml
-repos:
-  - repo: local
-    hooks:
-      - id: devcontext
-        name: Generate AI Context
-        entry: devcontext generate . -o .devcontext.json
-        language: system
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight
+
+jobs:
+  context:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate
+        run: devcontext generate . -o context.json
 ```
 
-## Tips
+## Programmatic Usage
 
-1. **For AI prompts**: Use `--format compact` for shorter output
-2. **For documentation**: Use `-f md` for readable Markdown
-3. **For large projects**: Increase `--max-depth` for deeper scanning
-4. **CI/CD**: Add to workflow for automated context generation
+### Python API
+```python
+from devcontext import DevContext
+
+dc = DevContext("./myproject")
+context = dc.generate(format="json")
+
+# Process context
+for path, info in context["files"].items():
+    print(f"{path}: {len(info.get('functions', []))} functions")
+```
+
+### Using Context Data
+```python
+# Find large files
+large_files = [
+    (path, info) 
+    for path, info in context["files"].items()
+    if info.get("lines", 0) > 500
+]
+
+# Find most complex files
+complex_files = sorted(
+    context["files"].items(),
+    key=lambda x: len(x[1].get("functions", [])),
+    reverse=True
+)[:10]
+```
+
+## Custom Analyzers
+
+```python
+from devcontext.analyzer import Analyzer
+
+class MyAnalyzer(Analyzer):
+    def analyze_file(self, filepath, content):
+        result = super().analyze_file(filepath, content)
+        
+        # Add custom analysis
+        if filepath.endswith(".py"):
+            result["custom"] = analyze_python_specific(content)
+        
+        return result
+```
+
+## Performance Tuning
+
+### For Large Repos
+```bash
+# Scan only src, limited depth
+devcontext generate ./src --max-depth 4
+
+# Skip large directories
+devcontext generate . --skip-dirs node_modules,.venv,dist
+```
+
+### Caching
+```bash
+# Generate and save
+devcontext generate . -o context.json
+
+# Later, load cached version
+devcontext load context.json
+```
